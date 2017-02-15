@@ -1,12 +1,13 @@
 Package: transfer
 Type: Package
 Title: Frequency Domain Transfer Function Estimation Tools
-Version: 1.0
+Version: 0.5
 Date: 2017-02-12
 Author: David L. Riegert
 Maintainer: David L. Riegert <driegert@gmail.com>
 Description: Includes functionality to estimate a multitaper coherence.  The coherence can be between a series and itself or two different series.  Coherence estimates can be done at 2 different frequencies if needed to create a spectrogram like plot.  Will estimate the transfer function between multiple inputs and a response in the frequency domain.
 License: GPL (>= 2)
-Imports: Rcpp (>= 0.12.5)
+Depends: multitaper
+Imports: Rcpp (>= 0.12.5), taRifx
 LinkingTo: Rcpp, RcppArmadillo
 RoxygenNote: 6.0.1

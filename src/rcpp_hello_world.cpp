@@ -9,6 +9,7 @@ using namespace Rcpp;
 //' @param x Something about a parameter
 //' @return Nothing.
 //' @details Some details about this function.
+//' @export
 // [[Rcpp::export]]
 List rcpp_hello_world() {
 

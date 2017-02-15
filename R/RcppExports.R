@@ -36,6 +36,7 @@ coherencyOffsetCpp <- function(ykx, yky, dx, dy, nTaper, nFreqRange, nOffset, ra
 #' @param x Something about a parameter
 #' @return Nothing.
 #' @details Some details about this function.
+#' @export
 rcpp_hello_world <- function() {
     .Call('transfer_rcpp_hello_world', PACKAGE = 'transfer')
 }

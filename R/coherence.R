@@ -196,6 +196,7 @@ coherency.mtm <- function(x, y = NULL, xySectioned = FALSE, n = NULL, forwardCoh
        , removePeriodic = removePeriodic, sigCutoff = sigCutoff)
 }
 
+# should not be called by user.
 coherencyHelper <- function(datLst, dpssIn, nw, k, nFFT, freqRangeIdx, range2Start
                             , forwardCoh
                             , prewhiten, adaptive, removePeriodic, sigCutoff, Vk){
@@ -245,7 +246,7 @@ removeLineCoh <- function(spec, sigCutoff, Vk, k, nFFT){
       for (j in 1:length(fSigIdx)){
         # store the 
         ### Conjugate this because I need to use the correct side of the tapered data
-        infl[, i] <- infl[, i] + shift(spec$mtm$cmv[fSigIdx[j]] * Vk[, i], -fSigIdx[j]+1)[1:(nFFT/2+1)]
+        infl[, i] <- infl[, i] + taRifx::shift(spec$mtm$cmv[fSigIdx[j]] * Vk[, i], -fSigIdx[j]+1)[1:(nFFT/2+1)]
       }
     }
   }
@@ -293,11 +294,274 @@ mscFromCoh <- function(coh, jackknife = FALSE){
 }
 
 
-
+#' Frequency axis calculation
+#' 
+#' Uses number of frequency bins and deltat values to create frequency axis.
+#' 
+#' @param nFFT A \code{numeric} giving total number of frequency bins.
+#' @param freqOffset A \code{numeric} giving the maximum offset used.
+#' @param deltat A \code{numeric} giving the sampling rate of the time series.
+#' 
+#' @return A \code{vector} of frequency values with range (0, nyquist) inclusive.
+#' @export
 freqOffsetAxis <- function(nFFT, freqOffset, deltat){
   c(rev(seq(0, -freqOffset, by = -1/(deltat * nFFT))), seq(0, freqOffset, by = 1/(deltat*nFFT))[-1])
 }
 
 offsetIdxFromFreq <- function(f, deltat, nFFT){
   f * deltat * nFFT
+}
+
+crossSpectrum <- function(x, y, slepX=NULL, evX = NULL, slepY=NULL, evY = NULL
+                          , nFFT=NULL, nw=NULL, k=NULL, nFFT.add=3
+                          , adaptiveWeights = TRUE, removePeriodic = TRUE, sigCutoff = 0.99
+                          , returnInternals = TRUE){
+  if (is.null(nFFT)){
+    # set the number of frequency bins using the longer series
+    nFFT <- 2^(floor(log2(max(length(x), length(y))) + nFFT.add))
+  }
+  if (is.null(nw) || is.null(k)){
+    warning("Either nw or k not set, using nw=4, k=7.")
+    nw <- 4; k <- 7;
+  }
+  
+  ## Calculate the Slepians for x and y series independently if required.
+  # assuems you will pass in slepians for X, but not Y, OR both at once.
+  # X == null and Y != null should not occur. (... fix this )
+  if (is.null(slepX) || is.null(evX)){
+    require('multitaper')
+    if (length(x) != length(y)){
+      tmpX <- dpss(n=length(x), k=k, nw=nw)
+      slepX <- tmpX$v
+      evX <- tmpX$eigen
+      tmpY <- dpss(n=length(y), k=k, nw=nw)
+      slepY <- tmpY$v
+      evY <- tmpY$eigen
+    } else {
+      tmp <- dpss(n=length(x), k=k, nw=nw)
+      slepX <- tmp$v
+      evX <- tmp$eigen
+      slepY <- slepX
+      evY <- evX
+    }
+  } else if (is.null(slepY) || is.null(evY)){
+    if (length(x) != length(y)){
+      tmpY <- dpss(n=length(y), k=k, nw=nw)
+      slepY <- tmpY$v
+      evY <- tmpY$eigen
+    } else {
+      slepY <- slepX
+      evY <- evX
+    }
+  }
+  
+  vx <- matrix(0, ncol=k, nrow=nFFT)
+  vy <- matrix(0, ncol=k, nrow=nFFT)
+  
+  vx[1:length(x), ] <- apply(slepX, MARGIN = 2, "*", x)
+  vy[1:length(y), ] <- apply(slepY, MARGIN = 2, "*", y)
+  
+  if (removePeriodic){
+    yk.x <- removeLine(x, nw = nw, k = k, nFFT = nFFT, sigCutoff = sigCutoff)$yk
+    yk.y <- removeLine(y, nw = nw, k = k, nFFT = nFFT, sigCutoff = sigCutoff)$yk
+  } else {
+    yk.x <- mvfft(vx)
+    yk.y <- mvfft(vy)
+  }
+  
+  if (adaptiveWeights){
+    # have to recalculate the weights due to taking out the periodic line components
+    ## Bias should drop (you'd hope... )
+    if (returnInternals){
+      tmpX <- adaptiveWeights(eigenSpec = abs(yk.x)^2, ev = evX, weightsOnly = FALSE)
+      d.x <- tmpX$weights
+      Sx <- tmpX$adaptSpec
+      tmpY <- adaptiveWeights(eigenSpec = abs(yk.y)^2, ev = evY, weightsOnly = FALSE)
+      d.y <- tmpY$weights
+      Sy <- tmpY$adaptSpec
+    } else {
+      d.x <- adaptiveWeights(eigenSpec = abs(yk.x)^2, ev = evX, weightsOnly = TRUE)$weights
+      d.y <- adaptiveWeights(eigenSpec = abs(yk.y)^2, ev = evY, weightsOnly = TRUE)$weights
+    }
+    
+    sk.xy <- yk.x * Conj(yk.y)
+    s.xy <- apply(abs(d.x*d.y) * sk.xy, 1, sum) / apply(abs(d.x*d.y), 1, sum)
+  } else {
+    # Equally weighted estimates of spectra (why the hell would you use this... )
+    d.x <- 1
+    d.y <- 1
+    Sx <- (1/k) * apply(abs(yk.x)^2, MARGIN = 1, sum)
+    Sy <- (1/k) * apply(abs(yk.y)^2, MARGIN = 1, sum)
+    # cross eigenspectra:
+    sk.xy <- yk.x * Conj(yk.y)
+    s.xy <- (1/k) * apply(sk.xy, 1, sum)
+  }
+  
+  if (returnInternals){
+    list(Sxy = s.xy, Sx = Sx, Sy = Sy, yk.x = yk.x, yk.y = yk.y
+         , dk.x = d.x, dk.y = d.y, nFFT = nFFT, nw = nw, k = k)
+  } else {
+    s.xy
+  }
+  
+  # Re(s.xy) # I don't think you want the real part of this... (Past David wrote this.. )
+  ## This gets used in MSC where |s.xy|^2 is the numerator... soooo
+}
+
+
+## DTJ's formula (2nd at top of 1088 in 1982 paper)
+# x - data or time-series - assumes ZERO-MEAN
+# maybe add this argument, xIsEigencoef = FALSE, later?
+removeLine <- function(x, nw = 4, k = 7, nFFT = NULL, nFFT.add = 5, sigCutoff = 0.99
+                       , returnInfluenceMat = TRUE, reshape = FALSE){
+  n <- length(x)
+  if (is.null(nFFT)){
+    nFFT <- 2^(floor(log2(length(x))) + nFFT.add)
+  }
+  
+  Vk.tmp <- matrix(0, nrow = nFFT, ncol = k)
+  dpss.tmp <- dpss(n = n, nw = nw, k = k)
+  Vk.tmp[1:n, ] <- dpss.tmp$v
+  ev <- dpss.tmp$eigen
+  Vk <- mvfft(Vk.tmp)
+  
+  # Vk.centered <- Vk[c((nFFT/2+2):nFFT, 1:(nFFT/2+1)), ]
+  
+  spec <- spec.mtm(x, nw = nw, k = k, nFFT = nFFT, plot=FALSE, returnInternals = TRUE, Ftest=TRUE)
+  
+  fSigIdx <- findLocalFMax(spec, cutoff = sigCutoff)
+  infl <- matrix(0, nrow = nFFT/2+1, ncol = k)
+  
+  if (length(fSigIdx) > 0){
+    inflReshape <- list() # i-th element corresponds to i-th taper
+    for (i in 1:k){
+      inflReshape[[i]] <- matrix(0, nrow = nFFT/2+1, ncol = length(fSigIdx))
+      for (j in 1:length(fSigIdx)){
+        # store the 
+        ### Conjugate this because I need to use the correct side of the tapered data
+        # inflReshape[[i]][, j] <- shift(spec$mtm$cmv[fSigIdx[j]] * Vk.centered[, i], -fSigIdx[j]+1)[(nFFT/2):nFFT]
+        inflReshape[[i]][, j] <- shift(spec$mtm$cmv[fSigIdx[j]] * Vk[, i], -fSigIdx[j]+1)[1:(nFFT/2+1)]
+        infl[, i] <- infl[, i] + inflReshape[[i]][, j]
+      }
+    }
+  }
+  
+  eigencoef <- matrix(0, nrow = nFFT/2+1, ncol = k)
+  eigencoefFull <- matrix(0, nrow = nFFT, ncol = k)
+  
+  
+  for (i in 1:k){
+    eigencoef[, i] <- spec$mtm$eigenCoefs[, i] - infl[, i]
+    eigencoefFull[, i] <- c(eigencoef[, i], Conj(rev(eigencoef[-c(1,nFFT/2+1), i])))
+  }
+  
+  if (reshape){
+    s.noLine <- adaptiveWeights(abs(eigencoefFull)^2, ev = spec$mtm$dpss$eigen) # noise spectrum
+    
+    # calculate CMV's to use in SD(f) calculation
+    # mu <- cmvSimple(eigencoef, nw = nw, k = k, n = n)
+    
+    # I need help with this... will ask DJT tomorrow.
+    # 1 / (2*pi*N) * sqrt(6 / ( (0.25) * mu^2 * n^3))
+    
+    
+    
+    # sum up the inflReshape elements to get the variance of the line component
+    # spread this across a df bandwidth of ... (6*s.noLine$adaptSpec[sigFreqIdx[i]])/(pi*A^2*T^3)
+    
+    # varF <- VARIANCE OF THE FREQUENCIES
+  }
+  
+  if (returnInfluenceMat){
+    list(yk = eigencoefFull, sigFreqIdx = fSigIdx, nw = spec$mtm$nw, k = spec$mtm$k
+         , nFFT = spec$mtm$nFFT, ev = ev)
+  } else {
+    eigencoefFull
+  }
+}
+
+# checks for whether the significant point in the F-test is 
+# larger than the previous and next point.  If yes, we have 
+# a local max.
+# - returns these frequencies
+# obj needs to be either a) a spec.mtm object (Ftest class) or 
+# b) a driegert.cmv object
+findLocalFMax <- function(obj, cutoff){
+  # Check whether this is a spec.mtm() object, or from my own CMV code.
+  if (any(class(obj) == "Ftest")){
+    Fval <- obj$mtm$Ftest
+    k <- obj$mtm$k
+  } else if (any(class(obj) == "driegert.cmv")){
+    Fval <- obj$Ftest$Fval
+    k <- obj$k
+  } else {
+    stop("obj needs to be of class 'driegert.cmv' or 'Ftest'.")
+  }
+  
+  # Thanks to Frank Marshall for catching the missing "-2"
+  fMaxInd <- which(Fval > qf(cutoff, 2, 2*k-2))
+  maxes <- c()
+  
+  if (length(fMaxInd) == 0){
+    return(maxes)
+  }
+  
+  for (i in 1:length(fMaxInd)){
+    if (fMaxInd[i] == 1 || fMaxInd[i] == length(Fval)){
+      next
+    }
+    
+    if (Fval[fMaxInd[i]] > Fval[fMaxInd[i]-1] && 
+        Fval[fMaxInd[i]] > Fval[fMaxInd[i]+1]){
+      maxes <- c(maxes, fMaxInd[i])
+    }
+  }
+  
+  maxes
+}
+
+
+# Adaptive MTM
+## Full frequency array for eigenSpec unless halfFreqArray = TRUE
+adaptiveWeights <- function(eigenSpec, ev, halfFreqArray = FALSE, weightsOnly = FALSE){
+  s.hat2 <- 0.5 * (eigenSpec[, 1] + eigenSpec[, 2])
+  s.hat <- 2*s.hat2
+  
+  # first estimate of the variance
+  sigmasq <- sum(s.hat2) * (1/length(s.hat2))
+  
+  if (halfFreqArray){
+    sigmasq <- 2 * sigmasq
+  }
+  
+  B <- (1 - ev) * sigmasq
+  
+  d <- matrix(0, nrow = dim(eigenSpec)[1], ncol = dim(eigenSpec)[2])
+  
+  newVar = TRUE
+  
+  while (mean(abs(s.hat2 - s.hat)/s.hat2) > 0.0001){
+    s.hat <- s.hat2
+    
+    for (i in 1:dim(eigenSpec)[2]){
+      d[, i] <- sqrt(ev[i]) * s.hat / (ev[i] * s.hat + B[i])
+    }
+    
+    s.hat2 <- apply(abs(d)^2 * eigenSpec, 1, sum) / apply(abs(d)^2, 1, sum)
+    
+    if (newVar){
+      sigmasq <- sum(s.hat2) * (1/length(s.hat2))
+      if (halfFreqArray){
+        sigmasq <- 2 * sigmasq
+      }
+      B <- (1 - ev) * sigmasq
+      newVar <- FALSE
+    }
+  }
+  
+  if (weightsOnly){
+    list(adaptSpec = NULL, weights = d)
+  } else {
+    list(adaptSpec = s.hat2, weights = d)
+  }
 }
