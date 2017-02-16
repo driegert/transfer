@@ -54,7 +54,7 @@ sectionData <- function(x, blockSize, overlap = 0){
 #' @export
 taper <- function(x, dataTaper = "dpss", nw = 4, k = 7){
   if (!any(class(x) == "blocked")){
-    stop("Call sectionData() on x before calling this.")
+    stop("Call sectionData() on x before calling this function.")
   }
   
   slep <- dpss(n = attr(x, "blockSize"), nw = nw, k = k)$v

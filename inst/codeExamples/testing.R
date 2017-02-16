@@ -2,6 +2,9 @@
 load("~/school_lab/contracts/health_canada2017/assets/data/edaData.RData")
 x <- data.frame(no2 = no2.dly, o3 = o3.dly, pm25 = pm25.dly)
 y <- data.frame(mort = mort$Mort.CP.b.A0)
+
+H <- tf(x, y, blockSize = 750, overlap = 0.25, deltat = 24*3600, nw = 6, k = 10)
+
 x2 <- sectionData(x, blockSize = 750, overlap = 0.25)
 y2 <- sectionData(y, blockSize = 750, overlap = 0.25)
 x3 <- taper(x2)
@@ -21,4 +24,4 @@ H.old <- olsTf(x = x3, y = y4, time = time, n = blockSize
             , npredictor = length(x3[[1]]), ntaper = ntaper
             , freq = freq[freqIdx], fOffset = 0)
 
-H <- tf(x, y, blockSize = 750, overlap = 0.25, deltat = 24*3600, nw = 6, k = 10)
+

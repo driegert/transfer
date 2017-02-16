@@ -111,3 +111,8 @@ olsTfEigen <- function(x, y, freqIdx, fOffsetIdxLst) {
     .Call('transfer_olsTfEigen', PACKAGE = 'transfer', x, y, freqIdx, fOffsetIdxLst)
 }
 
+#' @export
+sizeTest <- function(x) {
+    .Call('transfer_sizeTest', PACKAGE = 'transfer', x)
+}
+
