@@ -71,8 +71,8 @@ arma::cx_mat olsTf(List x, List y, arma::cx_vec time, int n
   arma::cx_vec Y(nblock*ntaper*noffset), Ztmp(npredictor);
   
   // initialize these?
-  arma::cx_mat Ytmp = as<arma::cx_mat>(y[1]);
-  arma::cx_mat Xtmp = as<arma::cx_mat>(as<List>(x[1])[1]);
+  arma::cx_mat Ytmp = as<arma::cx_mat>(y[0]);
+  arma::cx_mat Xtmp = as<arma::cx_mat>(as<List>(x[0])[0]);
   
   if (nblock != y.size()) stop("Must have the same number of blocks.");
   
