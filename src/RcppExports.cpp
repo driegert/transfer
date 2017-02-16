@@ -74,20 +74,6 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// olsTfEigen
-arma::cx_mat olsTfEigen(List x, List y, arma::ivec freqIdx, List fOffsetIdxLst);
-RcppExport SEXP transfer_olsTfEigen(SEXP xSEXP, SEXP ySEXP, SEXP freqIdxSEXP, SEXP fOffsetIdxLstSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject __result;
-    Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< List >::type x(xSEXP);
-    Rcpp::traits::input_parameter< List >::type y(ySEXP);
-    Rcpp::traits::input_parameter< arma::ivec >::type freqIdx(freqIdxSEXP);
-    Rcpp::traits::input_parameter< List >::type fOffsetIdxLst(fOffsetIdxLstSEXP);
-    __result = Rcpp::wrap(olsTfEigen(x, y, freqIdx, fOffsetIdxLst));
-    return __result;
-END_RCPP
-}
 // olsTf
 arma::cx_mat olsTf(List x, List y, arma::cx_vec time, int n, int npredictor, int ntaper, arma::cx_vec freq, arma::cx_vec fOffset);
 RcppExport SEXP transfer_olsTf(SEXP xSEXP, SEXP ySEXP, SEXP timeSEXP, SEXP nSEXP, SEXP npredictorSEXP, SEXP ntaperSEXP, SEXP freqSEXP, SEXP fOffsetSEXP) {
@@ -103,6 +89,20 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::cx_vec >::type freq(freqSEXP);
     Rcpp::traits::input_parameter< arma::cx_vec >::type fOffset(fOffsetSEXP);
     __result = Rcpp::wrap(olsTf(x, y, time, n, npredictor, ntaper, freq, fOffset));
+    return __result;
+END_RCPP
+}
+// olsTfEigen
+arma::cx_mat olsTfEigen(List x, List y, arma::ivec freqIdx, List fOffsetIdxLst);
+RcppExport SEXP transfer_olsTfEigen(SEXP xSEXP, SEXP ySEXP, SEXP freqIdxSEXP, SEXP fOffsetIdxLstSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< List >::type x(xSEXP);
+    Rcpp::traits::input_parameter< List >::type y(ySEXP);
+    Rcpp::traits::input_parameter< arma::ivec >::type freqIdx(freqIdxSEXP);
+    Rcpp::traits::input_parameter< List >::type fOffsetIdxLst(fOffsetIdxLstSEXP);
+    __result = Rcpp::wrap(olsTfEigen(x, y, freqIdx, fOffsetIdxLst));
     return __result;
 END_RCPP
 }

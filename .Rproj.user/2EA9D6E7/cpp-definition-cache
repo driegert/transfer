@@ -51,33 +51,33 @@
         "definitions" : [
             {
                 "column" : 17,
-                "file" : "/home/dave/school_lab/bin/transfer/src/transferFuncCpp.cpp",
+                "file" : "/home/dave/school_lab/bin/transfer/src/transferCpp.cpp",
                 "kind" : 6,
-                "line" : 12,
-                "name" : "sftCpp(int, int, int)",
+                "line" : 27,
+                "name" : "sftCpp(arma::cx_vec, arma::cx_double, arma::cx_vec)",
                 "parent_name" : "",
-                "usr" : "c:@F@sftCpp#I#I#I#"
+                "usr" : "c:@F@sftCpp#$@N@arma@C@Col>#$@N@std@N@__1@C@complex>#d#S1_#S0_#"
             },
             {
                 "column" : 14,
-                "file" : "/home/dave/school_lab/bin/transfer/src/transferFuncCpp.cpp",
+                "file" : "/home/dave/school_lab/bin/transfer/src/transferCpp.cpp",
                 "kind" : 6,
-                "line" : 26,
-                "name" : "olsTfEigen(List, List, int, List)",
+                "line" : 65,
+                "name" : "olsTf(List, List, arma::cx_vec, int, int, int, arma::cx_vec, arma::cx_vec)",
                 "parent_name" : "",
-                "usr" : "c:@F@olsTfEigen#$@N@Rcpp@C@Vector>#VI19#@N@Rcpp@CT>1#T@PreserveStorage#S0_#I#S0_#"
+                "usr" : "c:@F@olsTf#$@N@Rcpp@C@Vector>#VI19#@N@Rcpp@CT>1#T@PreserveStorage#S0_#$@N@arma@C@Col>#$@N@std@N@__1@C@complex>#d#I#I#I#S1_#S1_#"
             },
             {
                 "column" : 14,
-                "file" : "/home/dave/school_lab/bin/transfer/src/transferFuncCpp.cpp",
+                "file" : "/home/dave/school_lab/bin/transfer/src/transferCpp.cpp",
                 "kind" : 6,
-                "line" : 99,
-                "name" : "olsTf(List, List, int, int, int, int, int, int)",
+                "line" : 137,
+                "name" : "olsTfEigen(List, List, arma::ivec, List)",
                 "parent_name" : "",
-                "usr" : "c:@F@olsTf#$@N@Rcpp@C@Vector>#VI19#@N@Rcpp@CT>1#T@PreserveStorage#S0_#I#I#I#I#I#I#"
+                "usr" : "c:@F@olsTfEigen#$@N@Rcpp@C@Vector>#VI19#@N@Rcpp@CT>1#T@PreserveStorage#S0_#$@N@arma@C@Col>#I#S0_#"
             }
         ],
-        "file" : "/home/dave/school_lab/bin/transfer/src/transferFuncCpp.cpp",
-        "file_last_write" : 1470178413
+        "file" : "/home/dave/school_lab/bin/transfer/src/transferCpp.cpp",
+        "file_last_write" : 1487260942
     }
 ]

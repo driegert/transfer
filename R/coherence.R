@@ -26,6 +26,15 @@
 #' @param x A \code{vector} of values for the first dataset.
 #' @param y A \code{vector} of values for the second dataset - if null, assumes ... 
 #' I'm not sure actually.
+#' @param xySectioned A \code{logical} denoting whether the data has already been sectioned.
+#' \code{FLASE} implies that the code will be sectioned according to \code{blockSize} and 
+#' \code{overlap}.
+#' @param n A \code{numeric} value giving the length of the \code{x} and \code{y} data sets. 
+#' If \code{NULL}, will be determined in the function.
+#' @param forwardCoh A \code{logical} value indicating if the forward coherence (\code{TRUE}) 
+#' or reverse coherence \code{FALSE} should be computed.
+#' @param freqRange A \code{vector} of two values containing the range of frequencies to use.
+#' This range should be contained within [0, 1/(2*\code{dt})] (0 to Nyquist)
 #' 
 #' @return Returns a matrix containing the coherency.
 #' 

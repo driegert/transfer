@@ -41,15 +41,73 @@ rcpp_hello_world <- function() {
     .Call('transfer_rcpp_hello_world', PACKAGE = 'transfer')
 }
 
+#' Slow Fourier transform
+#' 
+#' Computes the Fourier transfrom of the data \code{x} at the frequency \code{f}.
+#' 
+#' @param x A complex vector to be Fourier transformed
+#' @param f A \code{numeric} value indicating the frequency
+#'  at which to calculate the Fourier tranform
+#' @param time A vector containing the times (sampling rate sort of).
+#' 
+#' @details My understanding is that performing the Fourier transform in this way 
+#' is numerically less stable than using an FFT and associated algorithms.
+#' This is something that should be addressed by the author.
+#' 
+#' @return complex value of the Fourier transform of x at f.
+#' 
+#' @export
 sftCpp <- function(x, f, time) {
     .Call('transfer_sftCpp', PACKAGE = 'transfer', x, f, time)
 }
 
-olsTfEigen <- function(x, y, freqIdx, fOffsetIdxLst) {
-    .Call('transfer_olsTfEigen', PACKAGE = 'transfer', x, y, freqIdx, fOffsetIdxLst)
-}
-
+#' Ordinary least squares frequency-domain regression
+#' 
+#' Estimates coefficients by frequency (transfer function) between 
+#' time-domain inputs \code{x} and response \code{y}.
+#' 
+#' @param y a \code{list} of complex matrices (containing real data probably) 
+#' - each matrix is a block in time and contains response * dpss - n rows, k columns
+#' @param x is a \code{list} of \code{lists}: each sublist is a block of time containing 
+#' numeric matrices like y - one matrix for each predictor
+#' @param time A vector containing times at which the data are sampled for each block.
+#' (you can just supply 1:n)
+#' @param n An \code{integer} indicating the number of samples in each block.
+#' @param npredictor An \code{integer} indicating the number of inputs (X's)
+#' @param ntaper An \code{integer} indicating the number of tapers that were used.
+#' @param freq is a list of frequencies at which to estimate the transfer function 
+#' - someone needs to take into account that there will be a gap at beginning and 
+#' end of size max(fOffset).
+#' @param fOffset a vector indicating which frequencies of predictors to use 
+#' (should at least be 0)
+#' 
+#' @details I need to revisit this and think of a way to NOT use the slow Fourier transform.
+#' Also, probably want to be using an SVD regression to get the transfer function.
+#' 
+#' @export
 olsTf <- function(x, y, time, n, npredictor, ntaper, freq, fOffset) {
     .Call('transfer_olsTf', PACKAGE = 'transfer', x, y, time, n, npredictor, ntaper, freq, fOffset)
+}
+
+#' Ordinary least squares frequency-domain regression on eigencoefficients
+#' 
+#' Estimates coefficients by frequency (transfer function) between 
+#' inputs \code{x} and response \code{y}.
+#' 
+#' @param x \code{list} of inputs that is a result of \code{taper()}.
+#' @param y \code{list} of responses that is a result of \code{taper()}.
+#' @param freqIdx \code{numeric} vector indicating at which frequencies the 
+#' coefficients should be estimated
+#' @param fOffsetIdxLst a \code{list} containing what offset frequencies should be used 
+#' (in a standard transfer function, this would contain the zero frequency offset)
+#' 
+#' @details Note to me: I should look at exactly how this is working (re: fOffsetIdxLst)
+#' 
+#' @return a \code{matrix} with columns the transfer function relating to the input 
+#' that was in the same column.
+#' 
+#' @export
+olsTfEigen <- function(x, y, freqIdx, fOffsetIdxLst) {
+    .Call('transfer_olsTfEigen', PACKAGE = 'transfer', x, y, freqIdx, fOffsetIdxLst)
 }
 

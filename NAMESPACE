@@ -2,6 +2,12 @@
 
 export(coherency.mtm)
 export(freqOffsetAxis)
+export(olsTf)
+export(olsTfEigen)
 export(rcpp_hello_world)
+export(sectionData)
+export(sftCpp)
+export(taper)
+export(tf)
 importFrom(Rcpp,evalCpp)
 useDynLib(transfer)

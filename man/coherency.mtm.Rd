@@ -17,6 +17,19 @@ coherency.mtm(x, y = NULL, xySectioned = FALSE, n = NULL,
 
 \item{y}{A \code{vector} of values for the second dataset - if null, assumes ... 
 I'm not sure actually.}
+
+\item{xySectioned}{A \code{logical} denoting whether the data has already been sectioned.
+\code{FLASE} implies that the code will be sectioned according to \code{blockSize} and 
+\code{overlap}.}
+
+\item{n}{A \code{numeric} value giving the length of the \code{x} and \code{y} data sets. 
+If \code{NULL}, will be determined in the function.}
+
+\item{forwardCoh}{A \code{logical} value indicating if the forward coherence (\code{TRUE}) 
+or reverse coherence \code{FALSE} should be computed.}
+
+\item{freqRange}{A \code{vector} of two values containing the range of frequencies to use.
+This range should be contained within [0, 1/(2*\code{dt})] (0 to Nyquist)}
 }
 \value{
 Returns a matrix containing the coherency.
