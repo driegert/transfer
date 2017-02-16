@@ -3,32 +3,31 @@
 \alias{transfer}
 \docType{package}
 \title{
-  A short title line describing what the package does
+  Estimating frequency-domain transfer functions
 }
 \description{
-  A more detailed description of what the package does. A length
-  of about one to five lines is recommended.
+  Estimating frequency-domain transfer functions.
 }
 \details{
-  This section should provide a more detailed overview of how to use the
-  package, including the most important functions.
+  Frequency-domain transfer functions are linear regressions of
+  a Fourier-transformed \emph{response} time series onto a set of
+  Fourier-transformed \emph{input} time series. The regression is
+  estimated at a set of frequencies. To obtain additional samples,
+  the input and response series are tapered using multiple
+  orthogonal tapers (discrete prolate spheroidal sequences), and/or
+  estimated across time-blocks. The function \link{tf} is the main
+  function.
 }
 \author{
-Your Name, email optional.
+David Riegert
 
-Maintainer: Your Name <your@email.com>
+Maintainer: David Riegert <driegert@gmail.com>
 }
 \references{
-  This optional section can contain literature or other references for
-  background information.
+Chave, A. D.,  and Jones, A. G. 2012 The magnetotelluric method: Theory and practice.
+Cambridge University Press.
+
+Thomson, D.J. 1982 Spectrum estimation and harmonic analysis. Proceedings of the IEEE,
+70:1055–1096.
 }
 \keyword{ package }
-\seealso{
-  Optional links to other man pages
-}
-\examples{
-  \dontrun{
-     ## Optional simple examples of the most important functions
-     ## These can be in \dontrun{} and \donttest{} blocks.   
-  }
-}
