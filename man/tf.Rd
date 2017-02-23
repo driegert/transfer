@@ -5,7 +5,8 @@
 \title{Estimate the frequency-domain transfer function}
 \usage{
 tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
-  k = 7, nFFT = NULL, freqRange = NULL, freqOffset = NULL)
+  k = 7, nFFT = NULL, freqRange = NULL, freqOffset = NULL,
+  standardize = FALSE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}
@@ -32,9 +33,13 @@ the zeropadding amount).}
 \item{freqRange}{NOT CURRENTLY IMPLEMENTED.}
 
 \item{freqOffset}{NOT CURRENTLY IMPLEMENTED (don't chage this... ).}
+
+\item{standardize}{Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1?}
 }
 \value{
-A complex matrix whose columns are the individual transfer function for each input.
+An object of class \code{transfer}, consisting of a complex matrix whose 
+columns are the individual transfer function for each input, and several attributes
+describing the transfer function estimate.
 }
 \description{
 Estimates a transfer function between the columns of input \code{x} and the response

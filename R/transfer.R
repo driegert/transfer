@@ -18,6 +18,7 @@
 #' the zeropadding amount).
 #' @param freqRange NOT CURRENTLY IMPLEMENTED.
 #' @param freqOffset NOT CURRENTLY IMPLEMENTED (don't chage this... ).
+#' @param standardize Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1? 
 #' 
 #' @details Takes the times series inputs and response, divides these series into 
 #' (optionally) overlapping blocks, tapers each block with Discrete 
@@ -25,12 +26,23 @@
 #' block, and then estimates the transfer function at each frequency between the Fourier 
 #' transforms of the inputs and the response.
 #' 
-#' @return A complex matrix whose columns are the individual transfer function for each input.
+#' @return An object of class \code{transfer}, consisting of a complex matrix whose 
+#' columns are the individual transfer function for each input, and several attributes
+#' describing the transfer function estimate.
 #' 
 #' @export
 tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k = 7, nFFT = NULL
-               , freqRange = NULL, freqOffset = NULL){
-  
+               , freqRange = NULL, freqOffset = NULL, standardize = FALSE){
+  if( standardize ){
+    stdPars <- vector( mode = "list" )
+      stdPars$xmean <- sapply( x, mean )
+      stdPars$ymean <- sapply( y, mean )
+      stdPars$xsd <- sapply( x, sd )
+      stdPars$ysd <- sapply( y, sd )
+    std <- function( a ) (a - mean(a))/sd(a)
+    x <- data.frame( lapply( x, std ) )
+    y <- data.frame( lapply( y, std ) )
+  }
   x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
   y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
   x3 <- taper(x2, nw = nw, k = k)
@@ -64,6 +76,8 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   attr(H, "dataTaper") <- attr(x3, "dataTaper")
   attr(H, "nw") <- attr(x3, "nw")
   attr(H, "k") <- attr(x3, "k")
+  attr(H, "standardize") <- standardize
+  if( standardize ) attr(H, "stdPars") <- stdPars
   
   H
 }
