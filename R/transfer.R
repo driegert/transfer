@@ -113,13 +113,18 @@ predict.transfer <- function( object, newdata, filterMod = trim, ... ){
   nm2 <- which( !is.na(nm) ) # The newdata names that exist in object names
   if( length(nmNA) > 0 ) warning( "The names of newdata do not match the names of object" )
   if( length(nmNA) == length( nm ) ) stop( "None of the names of newdata match the names of object" )
+  if( length(tfNames) - length(nm2) > 1 ) warning( "The newdata names do not match all of the names of object" )
   
   # Standardize inputs if required
-  stdPars <- as.data.frame( t( attr( object, "stdPars" ) ) )[c("xmean","xsd"),]
-  nm3 <- match( names( stdPars ), names( newdata[,nm2] ) ) # The positions of stdPars names in newdata names
-  std <- function( x, sP ) (x - sP[1])/sP[2]
-  newdata <- data.frame( mapply( FUN = std, x = newdata[,nm2], sP = stdPars[,nm3], SIMPLIFY = FALSE ) )
-
+  if( attr( object, "standardize" ) ){
+    stdPars <- as.data.frame( t( attr( object, "stdPars" ) ) )[c("xmean","xsd"),]
+    nm3 <- match( names( stdPars ), names( newdata[,nm2] ) ) # The positions of stdPars names in newdata names
+    std <- function( x, sP ) (x - sP[1])/sP[2]
+    newdata <- data.frame( mapply( FUN = std, x = newdata[,nm2], sP = stdPars[,nm3], SIMPLIFY = FALSE ) )
+  }else{
+    newdata <- newdata[,nm2]
+  }
+  
   # Rearrange transfer function coefficients
   objectC <- lapply( object, Conj )
   attributes( objectC ) <- attributes( object )
