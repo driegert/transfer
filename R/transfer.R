@@ -39,6 +39,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
       stdPars$ymean <- sapply( y, mean )
       stdPars$xsd <- sapply( x, sd )
       stdPars$ysd <- sapply( y, sd )
+      stdPars <- data.frame( stdPars )
     std <- function( a ) (a - mean(a))/sd(a)
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
@@ -80,4 +81,96 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   if( standardize ) attr(H, "stdPars") <- stdPars
   
   H
+}
+
+
+
+#' Predict using an estimated frequency-domain transfer function
+#' 
+#' Using output from the \code{\link{tf}} function, and an input (multivariate) time series,
+#' this function generates predicted values.
+#' 
+#' @param object An object of class \code{transfer}, from a call to the \code{\link{tf}} function.
+#' @param newdata A \code{data.frame} whose columns are the time domain input series.
+#' @param filterMod A \code{function} to be applied to the filter coefficients before convolution.
+#' @param ... additional arguments passed to \code{filterMod}.
+#' 
+#' @details The transfer function estimate is used to calculate filter coefficients to be
+#' applied in the time domain via convolution with the input series \code{newdata}.
+#' Prior to the convolution, the filter coefficients can be modified using the
+#' \code{filterMod} function.
+#' 
+#' @return A \code{data.frame} with the predicted values obtained by filtering 
+#' the input series \code{newdata}.
+#' 
+#' @export
+
+predict.transfer <- function( object, newdata, filterMod = trim, ... ){
+  # Match up names of newdata to the object names
+  tfNames <- names( object )
+  nm <- match( names( newdata ), tfNames ) # The positions of newdata names in object names 
+  nmNA <- which( is.na(nm) )
+  nm2 <- which( !is.na(nm) ) # The newdata names that exist in object names
+  if( length(nmNA) > 0 ) warning( "The names of newdata do not match the names of object" )
+  if( length(nmNA) == length( nm ) ) stop( "None of the names of newdata match the names of object" )
+  
+  # Standardize inputs if required
+  stdPars <- as.data.frame( t( attr( object, "stdPars" ) ) )[c("xmean","xsd"),]
+  nm3 <- match( names( stdPars ), names( newdata[,nm2] ) ) # The positions of stdPars names in newdata names
+  std <- function( x, sP ) (x - sP[1])/sP[2]
+  newdata <- data.frame( mapply( FUN = std, x = newdata[,nm2], sP = stdPars[,nm3], SIMPLIFY = FALSE ) )
+
+  # Rearrange transfer function coefficients
+  objectC <- lapply( object, Conj )
+  attributes( objectC ) <- attributes( object )
+  objectC <- objectC[(nrow(object)-1):2, ]
+  objectFull <- rbind( object, objectC )[,nm]
+  
+  # Inverse FFT of the coefficients
+  fC <- lapply( objectFull, function(x,...) fft(x,...)/length(x), inverse = TRUE )
+  
+  # Rearrange the filter coefficients
+  fC <- as.data.frame( lapply( fC, Re ) )
+  
+  # Only want n filter coefficients
+  n <- attr( object, "n" )/2
+  # The causal part of the filter
+  ind <- n:1
+  # The non-causal part of the filter
+  ind <- c( ind, nrow( fC ):(nrow(fC)-n+2) )
+  fC <- fC[ind,]
+  
+  # Apply the filterMod function to the coefficients
+  fC <- data.frame( lapply( fC, filterMod, ... ) )
+  
+  # Compute prediction using filter
+  out <- as.data.frame( mapply( filter, x = newdata, filter = fC ) )
+  
+  # Return prediction
+  out <- rowSums(out)
+out
+}
+
+
+#' Trim an odd-length vector
+#' 
+#' This function trims a vector with an odd length, leaving \code{n} elements to
+#' one or either side of the center element.
+#' 
+#' @param x The vector to trim
+#' @param n The number of elements to one or either side of the center element to keep
+#' @param side A vector indicating which side to keep: To keep \code{n} elements to the left, 
+#' set \code{side = 1}; to keep \code{n} elements to the right, set \code{side = 2}; for
+#' \code{n} elements to the left and right, set \code{side = 1:2}.
+#' 
+#' @return A trimmed \code{vector} according to \code{n} and \code{side}.
+#' 
+#' @export
+trim <- function(x, n = 5, side = 1:2){
+  if( abs( length(side)-1 ) > 1 | !all( side %in% 1:2 ) ) stop( "Invalid side argument" )
+  l <- length(x)
+  if( l%%2 != 1 ) stop( "Length of x is not odd" )
+  m <- ceiling( l/2 )
+  i <- list( (m-n):m, m:(m+n) )
+x[ unique( unlist(i[side]) ) ]
 }
