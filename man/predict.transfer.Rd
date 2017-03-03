@@ -4,7 +4,8 @@
 \alias{predict.transfer}
 \title{Predict using an estimated frequency-domain transfer function}
 \usage{
-\method{predict}{transfer}(object, newdata, filterMod = trim, ...)
+\method{predict}{transfer}(object, newdata, filterMod = trim, sides = 2,
+  returnInternals = FALSE, ...)
 }
 \arguments{
 \item{object}{An object of class \code{transfer}, from a call to the \code{\link{tf}} function.}
@@ -12,6 +13,13 @@
 \item{newdata}{A \code{data.frame} whose columns are the time domain input series.}
 
 \item{filterMod}{A \code{function} to be applied to the filter coefficients before convolution.}
+
+\item{sides}{Argument to \code{\link{filter}}: \code{sides = 1} is for filter coefficients
+that apply to past values only (a causal filter); \code{sides = 2} is for filter coefficients
+centered aroung lag 0.}
+
+\item{returnInternals}{whether to return things computed during the prediction.
+Currently, this returns the full vector(s) of filter coefficients as an attribute.}
 
 \item{...}{additional arguments passed to \code{filterMod}.}
 }
@@ -27,5 +35,7 @@ this function generates predicted values.
 The transfer function estimate is used to calculate filter coefficients to be
 applied in the time domain via convolution with the input series \code{newdata}.
 Prior to the convolution, the filter coefficients can be modified using the
-\code{filterMod} function.
+\code{filterMod} function. If \code{filterMod} produces a causal filter, ensure that
+\code{sides = 1}; in any case, be sure that the output of \code{filterMod} conforms
+to the requirements of \code{\link{filter}}.
 }

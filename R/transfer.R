@@ -93,19 +93,26 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
 #' @param object An object of class \code{transfer}, from a call to the \code{\link{tf}} function.
 #' @param newdata A \code{data.frame} whose columns are the time domain input series.
 #' @param filterMod A \code{function} to be applied to the filter coefficients before convolution.
+#' @param sides Argument to \code{\link{filter}}: \code{sides = 1} is for filter coefficients
+#' that apply to past values only (a causal filter); \code{sides = 2} is for filter coefficients
+#' centered aroung lag 0.
+#' @param returnInternals whether to return things computed during the prediction.
+#' Currently, this returns the full vector(s) of filter coefficients as an attribute.
 #' @param ... additional arguments passed to \code{filterMod}.
 #' 
 #' @details The transfer function estimate is used to calculate filter coefficients to be
 #' applied in the time domain via convolution with the input series \code{newdata}.
 #' Prior to the convolution, the filter coefficients can be modified using the
-#' \code{filterMod} function.
+#' \code{filterMod} function. If \code{filterMod} produces a causal filter, ensure that
+#' \code{sides = 1}; in any case, be sure that the output of \code{filterMod} conforms
+#' to the requirements of \code{\link{filter}}.
 #' 
 #' @return A \code{data.frame} with the predicted values obtained by filtering 
 #' the input series \code{newdata}.
 #' 
 #' @export
 
-predict.transfer <- function( object, newdata, filterMod = trim, ... ){
+predict.transfer <- function( object, newdata, filterMod = trim, sides = 2, returnInternals = FALSE, ... ){
   # Match up names of newdata to the object names
   tfNames <- names( object )
   nm <- match( names( newdata ), tfNames ) # The positions of newdata names in object names 
@@ -131,28 +138,33 @@ predict.transfer <- function( object, newdata, filterMod = trim, ... ){
   objectC <- objectC[(nrow(object)-1):2, ]
   objectFull <- rbind( object, objectC )[,nm]
   
-  # Inverse FFT of the coefficients
+  # Inverse FFT of the transfer function coefficients
   fC <- lapply( objectFull, function(x,...) fft(x,...)/length(x), inverse = TRUE )
   
   # Rearrange the filter coefficients
   fC <- as.data.frame( lapply( fC, Re ) )
   
-  # Only want n filter coefficients
-  n <- attr( object, "n" )/2
+  # Only want n filter coefficients if n is odd, n-1 if n is even?
+  # We want an odd number of coefficients so we know that the middle one is lag 0
+  n2 <- ceiling( attr( object, "blockSize" )/2 )
   # The causal part of the filter
-  ind <- n:1
-  # The non-causal part of the filter
-  ind <- c( ind, nrow( fC ):(nrow(fC)-n+2) )
+  ind <- n2:1
+  # The non-causal part of the filter (has length n2-1)
+  ind <- c( ind, nrow( fC ):(nrow(fC)-n2+2) )
   fC <- fC[ind,]
   
   # Apply the filterMod function to the coefficients
-  fC <- data.frame( lapply( fC, filterMod, ... ) )
+  fCMod <- data.frame( lapply( fC, filterMod, ... ) )
   
   # Compute prediction using filter
-  out <- as.data.frame( mapply( filter, x = newdata, filter = fC ) )
+  out <- as.data.frame( mapply( filter, x = newdata, filter = fCMod, sides = sides ) )
   
   # Return prediction
-  out <- rowSums(out)
+  out <- data.frame( predict = rowSums(out) )
+  if( returnInternals ){
+    attr( out, "filterCoefs" ) <- fC
+  }
+
 out
 }
 
@@ -164,18 +176,18 @@ out
 #' 
 #' @param x The vector to trim
 #' @param n The number of elements to one or either side of the center element to keep
-#' @param side A vector indicating which side to keep: To keep \code{n} elements to the left, 
-#' set \code{side = 1}; to keep \code{n} elements to the right, set \code{side = 2}; for
-#' \code{n} elements to the left and right, set \code{side = 1:2}.
+#' @param LR A vector indicating which side to keep: To keep \code{n} elements to the left, 
+#' set \code{LR = 1}; to keep \code{n} elements to the right, set \code{LR = 2}; for
+#' \code{n} elements to the left and right, set \code{LR = 1:2}.
 #' 
 #' @return A trimmed \code{vector} according to \code{n} and \code{side}.
 #' 
 #' @export
-trim <- function(x, n = 5, side = 1:2){
-  if( abs( length(side)-1 ) > 1 | !all( side %in% 1:2 ) ) stop( "Invalid side argument" )
+trim <- function(x, n = 5, LR = 1:2){
+  if( abs( length(LR)-1 ) > 1 | !all( LR %in% 1:2 ) ) stop( "Invalid LR argument" )
   l <- length(x)
   if( l%%2 != 1 ) stop( "Length of x is not odd" )
   m <- ceiling( l/2 )
   i <- list( (m-n):m, m:(m+n) )
-x[ unique( unlist(i[side]) ) ]
+x[ unique( unlist(i[LR]) ) ]
 }

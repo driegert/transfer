@@ -4,16 +4,16 @@
 \alias{trim}
 \title{Trim an odd-length vector}
 \usage{
-trim(x, n = 5, side = 1:2)
+trim(x, n = 5, LR = 1:2)
 }
 \arguments{
 \item{x}{The vector to trim}
 
 \item{n}{The number of elements to one or either side of the center element to keep}
 
-\item{side}{A vector indicating which side to keep: To keep \code{n} elements to the left, 
-set \code{side = 1}; to keep \code{n} elements to the right, set \code{side = 2}; for
-\code{n} elements to the left and right, set \code{side = 1:2}.}
+\item{LR}{A vector indicating which side to keep: To keep \code{n} elements to the left, 
+set \code{LR = 1}; to keep \code{n} elements to the right, set \code{LR = 2}; for
+\code{n} elements to the left and right, set \code{LR = 1:2}.}
 }
 \value{
 A trimmed \code{vector} according to \code{n} and \code{side}.
