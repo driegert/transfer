@@ -76,3 +76,47 @@ taper <- function(x, dataTaper = "dpss", nw = 4, k = 7){
   
   tapered
 }
+
+#' Linear regression using a singular value decomposition
+#' 
+#' Performs a multivariate linear regression using a singular value decomposition.
+#' 
+#' @param x A \code{matrix} or \code{vector} containing the predictors.
+#' @param y A \code{vector} containing the response.
+#' 
+#' @return A \code{list} containing the regression coefficients corresponding to the 
+#' columns of x, the standard error estimates (*not* the variance) on those coefficients, 
+#' and the eigenvalues of the decomposition (singular values squared).
+#' 
+#' @details Uses the process described in Mandel (1982), "Use of the Singular value 
+#' Decomposition in Regression Analysis".
+#' 
+#' @export
+svdRegression <- function(x, y){
+  # X = U D V'
+  sng <- svd(x)
+  
+  beta <- sng$v %*% ((Conj(t(sng$u)) %*% y) / sng$d)
+  
+  stdErr <- apply(t(apply(sng$v, 1, "/", sng$d)), 1, sum) * sd.complex(y)
+  
+  list(coef = t(beta), stdErr = stdErr, ev = sng$d^2)
+}
+
+#' Standard deviation of complex values
+#' 
+#' Calculates the standard deviation of a complex-valued series.
+#' 
+#' @param x a \code{vector} containing real or complex values.
+#' 
+#' @details Calculates the standard deviation of either a real or complex series using
+#' sd = E{(X-u)(X-u)'}
+#' where the apostrophe denotes the complex conjugate.
+#' 
+#' @return A real valued scalar.
+#' 
+#' @export
+sd.complex <- function(x){
+  x <- as.vector(x)
+  Re((1/(length(x) - 1)) * sum((x - mean(x)) * Conj(t(x - mean(x)))))
+}
