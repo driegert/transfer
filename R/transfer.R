@@ -35,11 +35,8 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
                , freqRange = NULL, freqOffset = NULL, standardize = FALSE){
   if( standardize ){
     stdPars <- vector( mode = "list" )
-      stdPars$xmean <- sapply( x, mean )
-      stdPars$ymean <- sapply( y, mean )
-      stdPars$xsd <- sapply( x, sd )
-      stdPars$ysd <- sapply( y, sd )
-      stdPars <- data.frame( stdPars )
+    stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
+    stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
     std <- function( a ) (a - mean(a))/sd(a)
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
@@ -93,6 +90,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
 #' @param object An object of class \code{transfer}, from a call to the \code{\link{tf}} function.
 #' @param newdata A \code{data.frame} whose columns are the time domain input series.
 #' @param filterMod A \code{function} to be applied to the filter coefficients before convolution.
+#' Defaults to \code{\link{trim}}.
 #' @param sides Argument to \code{\link{filter}}: \code{sides = 1} is for filter coefficients
 #' that apply to past values only (a causal filter); \code{sides = 2} is for filter coefficients
 #' centered aroung lag 0.
@@ -106,6 +104,15 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
 #' \code{filterMod} function. If \code{filterMod} produces a causal filter, ensure that
 #' \code{sides = 1}; in any case, be sure that the output of \code{filterMod} conforms
 #' to the requirements of \code{\link{filter}}.
+#' 
+#' The filter coefficients are put into vectors in the orientation expected by
+#' \code{\link{filter}}. If \code{N} is the total length of a block, the causal
+#' coefficients from \eqn{lag = 0} to \eqn{lag = (N-1)/2} are placed on
+#' the "right", and the non-causal coefficients from \eqn{lag = -(N-1)/(2)}
+#' to \eqn{lag = -1} are placed on the "left". This means that for a causal filter,
+#' you would exclude filter coefficients with an index \emph{less} than N/2,
+#' because there are an odd number of coefficients, with \eqn{lag = 0} in the middle,
+#' and an equal number of coefficients on each side of zero.
 #' 
 #' @return A \code{data.frame} with the predicted values obtained by filtering 
 #' the input series \code{newdata}.
@@ -124,7 +131,7 @@ predict.transfer <- function( object, newdata, filterMod = trim, sides = 2, retu
   
   # Standardize inputs if required
   if( attr( object, "standardize" ) ){
-    stdPars <- as.data.frame( t( attr( object, "stdPars" ) ) )[c("xmean","xsd"),]
+    stdPars <- as.data.frame( t( attr( object, "stdPars" )$x ) )[c("xmean","xsd"),]
     nm3 <- match( names( stdPars ), names( newdata[,nm2] ) ) # The positions of stdPars names in newdata names
     std <- function( x, sP ) (x - sP[1])/sP[2]
     newdata <- data.frame( mapply( FUN = std, x = newdata[,nm2], sP = stdPars[,nm3], SIMPLIFY = FALSE ) )
@@ -148,9 +155,9 @@ predict.transfer <- function( object, newdata, filterMod = trim, sides = 2, retu
   # We want an odd number of coefficients so we know that the middle one is lag 0
   n2 <- ceiling( attr( object, "blockSize" )/2 )
   # The causal part of the filter
-  ind <- n2:1
+  ind <- 1:n2
   # The non-causal part of the filter (has length n2-1)
-  ind <- c( ind, nrow( fC ):(nrow(fC)-n2+2) )
+  ind <- c( (nrow(fC)-n2+2):nrow(fC), ind )
   fC <- fC[ind,]
   
   # Apply the filterMod function to the coefficients
@@ -161,6 +168,10 @@ predict.transfer <- function( object, newdata, filterMod = trim, sides = 2, retu
   
   # Return prediction
   out <- data.frame( predict = rowSums(out) )
+  if( attr( object, "standardize" ) ){
+    yStdPars <- attr( object, "stdPars" )$y
+    out$predict <- out$predict*yStdPars$ysd + yStdPars$ymean
+  }
   if( returnInternals ){
     attr( out, "filterCoefs" ) <- fC
   }
