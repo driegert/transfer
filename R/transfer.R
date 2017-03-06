@@ -135,11 +135,8 @@ tf.svd <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
   # standardize the series by removing the mean and dividing by the standard deviation
   if( standardize ){
     stdPars <- vector( mode = "list" )
-    stdPars$xmean <- sapply( x, mean )
-    stdPars$ymean <- sapply( y, mean )
-    stdPars$xsd <- sapply( x, sd )
-    stdPars$ysd <- sapply( y, sd )
-    stdPars <- data.frame( stdPars )
+    stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
+    stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
     std <- function( a ) (a - mean(a))/sd(a)
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
