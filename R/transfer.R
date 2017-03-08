@@ -130,8 +130,9 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
 #' describing the transfer function estimate.
 #' 
 #' @export
-tf.svd <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k = 7, nFFT = NULL
-                , freqRange = NULL, freqOffset = NULL, standardize = FALSE){
+tf.svd <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4
+                    , k = 7, nFFT = NULL, freqRange = NULL, freqOffset = NULL
+                    , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE){
   # standardize the series by removing the mean and dividing by the standard deviation
   if( standardize ){
     stdPars <- vector( mode = "list" )
@@ -141,6 +142,9 @@ tf.svd <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
   }
+  
+  # I *think* we want to prewhiten based on the most data available?
+  # (probably.. due to welch estimate, etc... )
   
   # block the data (x2, y2 are a list of data.frames)
   x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
@@ -208,7 +212,7 @@ tf.svd <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
   
   # This would be used if incorporating offset frequencies into the transfer function
   # regression.
-  # NOT NEEDED HERE.
+  # NOT IMPLEMENTED YET (and not needed for the calling function)
   # if (is.null(freqOffset)){
   #   freqOffset = 0
   # }
@@ -306,6 +310,73 @@ predict.transfer <- function( object, newdata, filterMod = trim, sides = 2, retu
     newdata <- newdata[,nm2]
   }
   
+  ################################
+  ### this is in impulseResponse()
+  # Rearrange transfer function coefficients
+  # objectC <- lapply( object, Conj )
+  # attributes( objectC ) <- attributes( object )
+  # objectC <- objectC[(nrow(object)-1):2, ]
+  # objectFull <- rbind( object, objectC )[,nm]
+  # 
+  # # Inverse FFT of the transfer function coefficients
+  # fC <- lapply( objectFull, function(x,...) fft(x,...)/length(x), inverse = TRUE )
+  # 
+  # # Rearrange the filter coefficients
+  # fC <- as.data.frame( lapply( fC, Re ) )
+  # 
+  # # Only want n filter coefficients if n is odd, n-1 if n is even?
+  # # We want an odd number of coefficients so we know that the middle one is lag 0
+  # n2 <- ceiling( attr( object, "blockSize" )/2 )
+  # # The causal part of the filter
+  # ind <- 1:n2
+  # # The non-causal part of the filter (has length n2-1)
+  # ind <- c( (nrow(fC)-n2+2):nrow(fC), ind )
+  # fC <- fC[ind,]
+  ###
+  ##############################
+  
+  fC <- impulseResponse(object) # if you uncomment the above block, delete this.
+  
+  # Apply the filterMod function to the coefficients
+  fCMod <- data.frame( lapply( fC, filterMod, ... ) )
+  
+  # Compute prediction using filter
+  out <- as.data.frame( mapply( filter, x = newdata, filter = fCMod, sides = sides ) )
+  
+  # Return prediction
+  out <- data.frame( predict = rowSums(out) )
+  if( attr( object, "standardize" ) ){
+    yStdPars <- attr( object, "stdPars" )$y
+    out$predict <- out$predict*yStdPars$ysd + yStdPars$ymean
+  }
+  if( returnInternals ){
+    attr( out, "filterCoefs" ) <- fC
+  }
+
+out
+}
+
+
+#' Obtain the impusle response from a transfer object
+#' 
+#' Inverse Fourier transforms the transfer function to obtain the impulse response
+#' 
+#' @param object An object of class \code{transfer} obtained from \link{tf.svd} or \link{tf}.
+#' 
+#' @details Inverts the transfer function object returning causal and non-causal filter 
+#' coefficients.  The non-causal filter coefficients are the left "half" of the vector with 
+#' the causal parts being on the right (this is the form required for \link{filter}).
+#' Aaron maybe want to make sure I didn't say this incorrectly O_O.
+#' 
+#' @return A vector containing the impulse response of the provided transfer function 
+#' from \link{tf}.
+#' 
+#' @export
+
+impulseResponse <- function(object){
+  tfNames <- names( object ) # don't actually need this I don't think
+  nm <- tfNames
+  
   # Rearrange transfer function coefficients
   objectC <- lapply( object, Conj )
   attributes( objectC ) <- attributes( object )
@@ -325,25 +396,7 @@ predict.transfer <- function( object, newdata, filterMod = trim, sides = 2, retu
   ind <- 1:n2
   # The non-causal part of the filter (has length n2-1)
   ind <- c( (nrow(fC)-n2+2):nrow(fC), ind )
-  fC <- fC[ind,]
-  
-  # Apply the filterMod function to the coefficients
-  fCMod <- data.frame( lapply( fC, filterMod, ... ) )
-  
-  # Compute prediction using filter
-  out <- as.data.frame( mapply( filter, x = newdata, filter = fCMod, sides = sides ) )
-  
-  # Return prediction
-  out <- data.frame( predict = rowSums(out) )
-  if( attr( object, "standardize" ) ){
-    yStdPars <- attr( object, "stdPars" )$y
-    out$predict <- out$predict*yStdPars$ysd + yStdPars$ymean
-  }
-  if( returnInternals ){
-    attr( out, "filterCoefs" ) <- fC
-  }
-
-out
+  fC[ind,]
 }
 
 
