@@ -6,7 +6,7 @@
 \usage{
 tf.svd(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
   k = 7, nFFT = NULL, freqRange = NULL, freqOffset = NULL,
-  standardize = FALSE)
+  standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}

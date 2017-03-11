@@ -373,9 +373,9 @@ out
 #' 
 #' @export
 
-impulseResponse <- function(object){
+impulseResponse <- function(object, frequencyName = "freq"){
   tfNames <- names( object ) # don't actually need this I don't think
-  nm <- tfNames
+  nm <- tfNames[ tfNames != frequencyName ]
   
   # Rearrange transfer function coefficients
   objectC <- lapply( object, Conj )

@@ -4,7 +4,7 @@
 \alias{impulseResponse}
 \title{Obtain the impusle response from a transfer object}
 \usage{
-impulseResponse(object)
+impulseResponse(object, frequencyName = "freq")
 }
 \arguments{
 \item{object}{An object of class \code{transfer} obtained from \link{tf.svd} or \link{tf}.}
