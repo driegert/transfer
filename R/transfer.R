@@ -142,13 +142,13 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   colnames(H) <- c("freq", colnames(x))
   
   attr(H, "class") <- c(attr(H, "class"), "transfer")
-  attr(H, "blockSize") <- attr(x3, "blockSize")
-  attr(H, "overlap") <- attr(x3, "overlap")
-  attr(H, "numSections") <- attr(x3, "numSections")
-  attr(H, "n") <- attr(x3, "n")
-  attr(H, "dataTaper") <- attr(x3, "dataTaper")
-  attr(H, "nw") <- attr(x3, "nw")
-  attr(H, "k") <- attr(x3, "k")
+  attr(H, "blockSize") <- attr(x2, "blockSize")
+  attr(H, "overlap") <- attr(x2, "overlap")
+  attr(H, "numSections") <- attr(x2, "numSections")
+  attr(H, "n") <- attr(x2, "n")
+  attr(H, "dataTaper") <- attr(x2, "dataTaper")
+  attr(H, "nw") <- attr(x2, "nw")
+  attr(H, "k") <- attr(x2, "k")
   attr(H, "standardize") <- standardize
   if( standardize ) attr(H, "stdPars") <- stdPars
   
