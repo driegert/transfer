@@ -5,8 +5,9 @@
 \title{Estimate the frequency-domain transfer function}
 \usage{
 tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
-  k = 7, nFFT = NULL, freqRange = NULL, freqOffset = NULL,
-  standardize = FALSE)
+  k = 7, nFFT = NULL, method = c("svd", "sft"),
+  adaptiveWeighting = TRUE, freqRange = NULL, freqOffset = NULL,
+  standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}
@@ -30,11 +31,21 @@ floor(2*nw - 1) and no larger than floor(2*nw).}
 \item{nFFT}{A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
 the zeropadding amount).}
 
+\item{method}{A \code{character} string indicating which method to use.  See details.}
+
+\item{adaptiveWeighting}{A \code{logical} indicating whether the eigencoefficients should 
+be multiplied by their adaptive weights before performing the regression.
+NOT YET IMPLEMENTED.}
+
 \item{freqRange}{NOT CURRENTLY IMPLEMENTED.}
 
 \item{freqOffset}{NOT CURRENTLY IMPLEMENTED (don't chage this... ).}
 
 \item{standardize}{Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1?}
+
+\item{prewhiten}{NOT CURRENTLY IMPLEMENTED.}
+
+\item{removePeriodic}{NOT CURRENTLY IMPLEMENTED.}
 }
 \value{
 An object of class \code{transfer}, consisting of a complex matrix whose 
@@ -49,6 +60,16 @@ Estimates a transfer function between the columns of input \code{x} and the resp
 Takes the times series inputs and response, divides these series into 
 (optionally) overlapping blocks, tapers each block with Discrete 
 Prolate Spheriodal Sequences (DPSS's or Slepian sequences), Fourier transforms each 
-block, and then estimates the transfer function at each frequency between the Fourier 
+block, uses the adaptive weights (\code{method = "svd"}) and then estimates the 
+transfer function at each frequency between the Fourier 
 transforms of the inputs and the response.
+
+The \code{method} argument indicates how the transfer function should be estimated.  
+\code{method = "sft"} does the following; 1) a slow Fourier transform is used, 2) no 
+adaptive weights are used and 3) the matrix definition of the regression coefficients
+are used:
+$(X^{t}X)^{-1})X^{-1}y$
+\code{method = "svd"} uses 1) the FFT, 2) adaptive weights, and 3) a singular value 
+decomposition method for estimating the regression coefficients.
+Overall - \code{method = "svd"} is in all probability the better method to use.
 }

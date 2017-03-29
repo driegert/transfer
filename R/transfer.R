@@ -16,15 +16,31 @@
 #' floor(2*nw - 1) and no larger than floor(2*nw).
 #' @param nFFT A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
 #' the zeropadding amount).
+#' @param method A \code{character} string indicating which method to use.  See details.
+#' @param adaptiveWeighting A \code{logical} indicating whether the eigencoefficients should 
+#' be multiplied by their adaptive weights before performing the regression.
+#' NOT YET IMPLEMENTED.
 #' @param freqRange NOT CURRENTLY IMPLEMENTED.
 #' @param freqOffset NOT CURRENTLY IMPLEMENTED (don't chage this... ).
 #' @param standardize Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1? 
+#' @param prewhiten NOT CURRENTLY IMPLEMENTED.
+#' @param removePeriodic NOT CURRENTLY IMPLEMENTED.
 #' 
 #' @details Takes the times series inputs and response, divides these series into 
 #' (optionally) overlapping blocks, tapers each block with Discrete 
 #' Prolate Spheriodal Sequences (DPSS's or Slepian sequences), Fourier transforms each 
-#' block, and then estimates the transfer function at each frequency between the Fourier 
+#' block, uses the adaptive weights (\code{method = "svd"}) and then estimates the 
+#' transfer function at each frequency between the Fourier 
 #' transforms of the inputs and the response.
+#' 
+#' The \code{method} argument indicates how the transfer function should be estimated.  
+#' \code{method = "sft"} does the following; 1) a slow Fourier transform is used, 2) no 
+#' adaptive weights are used and 3) the matrix definition of the regression coefficients
+#' are used:
+#' $(X^{t}X)^{-1})X^{-1}y$
+#' \code{method = "svd"} uses 1) the FFT, 2) adaptive weights, and 3) a singular value 
+#' decomposition method for estimating the regression coefficients.
+#' Overall - \code{method = "svd"} is in all probability the better method to use.
 #' 
 #' @return An object of class \code{transfer}, consisting of a complex matrix whose 
 #' columns are the individual transfer function for each input, and several attributes
@@ -32,8 +48,10 @@
 #' 
 #' @export
 tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k = 7, nFFT = NULL
-               , freqRange = NULL, freqOffset = NULL, standardize = FALSE){
-  
+               , method = c("svd", "sft"), adaptiveWeighting = TRUE
+               , freqRange = NULL, freqOffset = NULL
+               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
+{
   # standardize the series by removing the mean and dividing by the standard deviation
   if( standardize ){
     stdPars <- vector( mode = "list" )
@@ -43,16 +61,6 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
   }
-  
-  # block the data (x2, y2 are a list of data.frames)
-  x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
-  y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
-  # taper the blocked data
-  x3 <- taper(x2, nw = nw, k = k)
-  y3 <- unlist(taper(y2, nw = nw, k = k), recursive = FALSE)
-  
-  # determine an appropriate time vector (0 to T-dt)
-  time <- seq(0, (blockSize - 1)*deltat, by = deltat)
   
   # number of frequencies bins to use (zero-pad length)
   if (is.null(nFFT)){
@@ -67,14 +75,68 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   
   # determine the positive values of the frequencies.
   freq <- seq(0, 1/(2*deltat), by = 1/(nFFT*deltat))
-  # freqIdx at which frequencies of the response the transfer function should be 
-  # estimated (you could not use all frequencies if offsets were also used)
-  freqIdx <- 1:length(freq)
+  nfreq <- length(freq)
   
-  # perform the least squares complex-regresison.
-  H.mat <- olsTf(x = x3, y = y3, time = time, n = blockSize
-             , npredictor = length(x3[[1]]), ntaper = k
-             , freq = freq[freqIdx], fOffset = freqOffset)
+  # block the data (x2, y2 are a list of data.frames)
+  x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
+  y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
+  
+  if (method[1] == "svd"){
+    x.spec <- list()
+    x.wtEigenCoef <- list()
+    y.spec <- list()
+    y.wtEigenCoef <- list()
+    
+    numSections <- attr(x2, "numSections")
+    
+    # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
+    weightedEigen <- function(obj){ obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt }
+    
+    # estimate the eigenspectra and weights and multiply the two
+    for (i in 1:numSections){
+      x.spec[[i]] <- lapply(x2[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
+                            , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
+      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen)
+      y.spec[[i]] <- lapply(y2[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
+                            , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
+      y.wtEigenCoef[[i]] <- lapply(y.spec[[i]], weightedEigen)
+    }
+    
+    
+    # indexing helper function that grabs and stacks all the eigencoefficients at a frequency
+    eigenByFreq <- function(obj, rowNum, numEl){
+      matrix(unlist(lapply(obj, function(x, idx) x[idx, ], rowNum)), ncol = numEl)
+    }
+    
+    x.design <- list()
+    
+    # stack the eigencoefficients by frequency from each block
+    # form into a single list
+    for (i in 1:nfreq){
+      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 3))
+                            , y = do.call(rbind, lapply(y.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 1)))
+    }
+    
+    H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
+    
+    H.mat <- do.call(rbind, lapply(H.tmp, "[[", "coef"))
+  } else if (method[1] == "sft") {
+    # taper the blocked data
+    x3 <- taper(x2, nw = nw, k = k)
+    y3 <- unlist(taper(y2, nw = nw, k = k), recursive = FALSE)
+    
+    # determine an appropriate time vector (0 to T-dt)
+    time <- seq(0, (blockSize - 1)*deltat, by = deltat)
+    
+    # freqIdx at which frequencies of the response the transfer function should be 
+    # estimated (you could not use all frequencies if offsets were also used)
+    freqIdx <- 1:length(freq)
+    
+    # perform the least squares complex-regresison.
+    H.mat <- olsTf(x = x3, y = y3, time = time, n = blockSize
+                   , npredictor = length(x3[[1]]), ntaper = k
+                   , freq = freq[freqIdx], fOffset = freqOffset)
+  }
   
   H <- data.frame(freq, H.mat)
   colnames(H) <- c("freq", colnames(x))
