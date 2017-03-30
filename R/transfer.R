@@ -19,7 +19,7 @@
 #' @param method A \code{character} string indicating which method to use.  See details.
 #' @param adaptiveWeighting A \code{logical} indicating whether the eigencoefficients should 
 #' be multiplied by their adaptive weights before performing the regression.
-#' NOT YET IMPLEMENTED.
+#' Note: Only implemented for \code{method = "svd"}.
 #' @param freqRange NOT CURRENTLY IMPLEMENTED.
 #' @param freqOffset NOT CURRENTLY IMPLEMENTED (don't chage this... ).
 #' @param standardize Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1? 
@@ -91,17 +91,24 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     
     # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
     weightedEigen <- function(obj){ obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt }
+    # or not... (parameter set)
+    nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
     
     # estimate the eigenspectra and weights and multiply the two
     for (i in 1:numSections){
       x.spec[[i]] <- lapply(x2[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
                             , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
-      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen)
       y.spec[[i]] <- lapply(y2[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
                             , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
-      y.wtEigenCoef[[i]] <- lapply(y.spec[[i]], weightedEigen)
+      
+      if (adaptiveWeighting){
+        x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen)
+        y.wtEigenCoef[[i]] <- lapply(y.spec[[i]], weightedEigen)
+      } else {
+        x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], nonWeightedEigen)
+        y.wtEigenCoef[[i]] <- lapply(y.spec[[i]], nonWeightedEigen)
+      }
     }
-    
     
     # indexing helper function that grabs and stacks all the eigencoefficients at a frequency
     eigenByFreq <- function(obj, rowNum, numEl){

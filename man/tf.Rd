@@ -35,7 +35,7 @@ the zeropadding amount).}
 
 \item{adaptiveWeighting}{A \code{logical} indicating whether the eigencoefficients should 
 be multiplied by their adaptive weights before performing the regression.
-NOT YET IMPLEMENTED.}
+Note: Only implemented for \code{method = "svd"}.}
 
 \item{freqRange}{NOT CURRENTLY IMPLEMENTED.}
 
