@@ -120,3 +120,17 @@ sd.complex <- function(x){
   x <- as.vector(x)
   Re((1/(length(x) - 1)) * sum((x - mean(x)) * Conj(t(x - mean(x)))))
 }
+
+#' Standardize a vector
+#' 
+#' Subtracts the mean and divides by the standard deviation.
+#' 
+#' @param x A \code{numeric} vector to standardize.
+#' 
+#' @details Does exactly what the description says and nothing else.  Will also 
+#' work on complex-valued vectors.
+#' 
+#' @return A standardized vector.
+#' 
+#' @export
+std <- function( x ){ (x - mean(x))/sd.complex(x) }
