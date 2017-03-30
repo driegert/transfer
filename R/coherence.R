@@ -574,3 +574,32 @@ adaptiveWeights <- function(eigenSpec, ev, halfFreqArray = FALSE, weightsOnly = 
     list(adaptSpec = s.hat2, weights = d)
   }
 }
+
+###### ^^^ This is all old code written ... Summer 2016-ish ^^^ ######
+# Starting over now... see if we can do this a smidge more efficiently
+
+#' Calculates the coherence between two series
+#' 
+#' Estimates the frequency domain coherence using the multitaper method.
+#' @param x A \code{numeric} vector representing the first time series.
+#' @param y A \code{numeric} vector containing the response series.
+#' @param blockSize A \code{numeric} indicating the block sizes into which the 
+#' input and response series will be partitioned.
+#' @param overlap A \code{numeric} between 0 and 1 indicating how much overlap should exist 
+#' between adjacent blocks.
+#' @param deltat A \code{numeric} indicating the sample rate.
+#' @param nw A \code{numeric} indicating the time bandwidth parameter for estimating the 
+#' Slepian data tapers.
+#' @param k A \code{numeric} indicating the number of tapers to use - should be approximately
+#' floor(2*nw - 1) and no larger than floor(2*nw).
+#' @param nFFT A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
+#' the zeropadding amount).
+#' 
+#' @export
+coherence <- function(x, y, blockSize = length(x), overlap = 0, deltat = 1
+                      , nw = 4, k = 7, nFFT = NULL
+                      , freqRange = NULL, maxFreqOffset = NULL, standardize = TRUE
+                      , prewhiten = TRUE, removePeriodic = TRUE, sigCutoff = NULL)
+{
+  
+}

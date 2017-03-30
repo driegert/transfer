@@ -134,3 +134,58 @@ sd.complex <- function(x){
 #' 
 #' @export
 std <- function( x ){ (x - mean(x))/sd.complex(x) }
+
+#' Calculates the eigencoefficents of a blocked time series
+#' 
+#' Calculates the eigencoefficients (tapered Fourier transforms) of the provided (pre-blocked)
+#' series.
+#' 
+#' @param x A \code{list} of data.frames as returned by \link{sectionData}.
+#' @param deltat A \code{numeric} indicating the sample rate.
+#' @param nw A \code{numeric} indicating the time bandwidth parameter for estimating the 
+#' Slepian data tapers.
+#' @param k A \code{numeric} indicating the number of tapers to use - should be approximately
+#' floor(2*nw - 1) and no larger than floor(2*nw).
+#' @param nFFT A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
+#' the zeropadding amount).
+#' @param numSections A \code{numeric} indicating the number of elements in the \code{list} x.
+#' @param adaptiveWeighting A \code{logical} indicating whether the eigencoefficients should 
+#' be multiplied by their adaptive weights before performing the regression.
+#' 
+#' @details Takes a \code{list} of data.frames and calculates the tapered Fourier transform 
+#' of each column of each data.frame.  \link{spec.mtm} will calculate the adaptive weights 
+#' to be used (bias protection) and these can also (and probably should be) used during 
+#' coherence and transfer function estimation.
+#' 
+#' @return A \code{list} of lists.  You probably want to call \link{stackEigenByFreq} 
+#' after this to get a more usable format.
+#' 
+#' @export
+blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
+                            , adaptiveWeighting = TRUE){
+  x.spec <- list()
+  x.wtEigenCoef <- list()
+  
+  # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
+  weightedEigen <- function(obj){ obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt }
+  # or not... (parameter set)
+  nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
+  
+  # estimate the eigenspectra and weights and multiply the two
+  for (i in 1:numSections){
+    x.spec[[i]] <- lapply(x[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
+                          , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
+    
+    if (adaptiveWeighting){
+      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen)
+    } else {
+      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], nonWeightedEigen)
+    }
+  }
+  
+  x.wtEigenCoef
+}
+
+stackEigenByFreq <- function(x){
+  print("Not yet sucka!") # god... please don't read this ... #shame.
+}

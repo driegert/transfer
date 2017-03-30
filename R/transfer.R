@@ -57,7 +57,6 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     stdPars <- vector( mode = "list" )
     stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
     stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
-    std <- function( a ) (a - mean(a))/sd(a)
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
   }
@@ -82,33 +81,14 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
   
   if (method[1] == "svd"){
-    x.spec <- list()
-    x.wtEigenCoef <- list()
-    y.spec <- list()
-    y.wtEigenCoef <- list()
-    
     numSections <- attr(x2, "numSections")
     
-    # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
-    weightedEigen <- function(obj){ obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt }
-    # or not... (parameter set)
-    nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
-    
-    # estimate the eigenspectra and weights and multiply the two
-    for (i in 1:numSections){
-      x.spec[[i]] <- lapply(x2[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
-                            , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
-      y.spec[[i]] <- lapply(y2[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
-                            , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
-      
-      if (adaptiveWeighting){
-        x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen)
-        y.wtEigenCoef[[i]] <- lapply(y.spec[[i]], weightedEigen)
-      } else {
-        x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], nonWeightedEigen)
-        y.wtEigenCoef[[i]] <- lapply(y.spec[[i]], nonWeightedEigen)
-      }
-    }
+    x.wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
+                                           , nFFT = nFFT, numSections = numSections
+                                           , adaptiveWeighting = adaptiveWeighting)
+    y.wtEigenCoef <- blockedEigenCoef(y2, deltat = deltat, nw = nw, k = k
+                                           , nFFT = nFFT, numSections = numSections
+                                           , adaptiveWeighting = adaptiveWeighting)
     
     # indexing helper function that grabs and stacks all the eigencoefficients at a frequency
     eigenByFreq <- function(obj, rowNum, numEl){
@@ -158,6 +138,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   attr(H, "k") <- attr(x2, "k")
   attr(H, "standardize") <- standardize
   if( standardize ) attr(H, "stdPars") <- stdPars
+  attr(H, "adaptiveWeighting") <- adaptiveWeighting
   
   H
 }
