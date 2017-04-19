@@ -581,7 +581,7 @@ adaptiveWeights <- function(eigenSpec, ev, halfFreqArray = FALSE, weightsOnly = 
 #' Calculates the coherence between two series
 #' 
 #' Estimates the frequency domain coherence using the multitaper method.
-#' @param x A \code{numeric} vector representing the first time series.
+#' @param x A \code{data.frame} whose columns are the time domain input series.
 #' @param y A \code{numeric} vector containing the response series.
 #' @param blockSize A \code{numeric} indicating the block sizes into which the 
 #' input and response series will be partitioned.
@@ -596,10 +596,65 @@ adaptiveWeights <- function(eigenSpec, ev, halfFreqArray = FALSE, weightsOnly = 
 #' the zeropadding amount).
 #' 
 #' @export
-coherence <- function(x, y, blockSize = length(x), overlap = 0, deltat = 1
-                      , nw = 4, k = 7, nFFT = NULL
-                      , freqRange = NULL, maxFreqOffset = NULL, standardize = TRUE
+coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 1
+                      , nw = 4, k = 7, nFFT = NULL, forward = TRUE, msc = FALSE
+                      , freqRange = NULL, maxFreqOffset = NULL, standardize = FALSE
                       , prewhiten = TRUE, removePeriodic = TRUE, sigCutoff = NULL)
 {
+  # standardize the series by removing the mean and dividing by the standard deviation
+  if( standardize ){
+    stdPars <- vector( mode = "list" )
+    stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
+    stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
+    x <- data.frame( lapply( x, std ) )
+    y <- data.frame( lapply( y, std ) )
+  }
   
+  # number of frequencies bins to use (zero-pad length)
+  if (is.null(nFFT)){
+    nFFT <- 2^(floor(log2(blockSize)) + 3)
+  }
+  
+  # determine the positive values of the frequencies.
+  freq <- seq(0, 1/(2*deltat), by = 1/(nFFT*deltat))
+  nfreq <- length(freq)
+  
+  # block the data (x2, y2 are a list of data.frames)
+  if (is.null(y)){
+    x2 <- sectionData(data.frame(x = x[, 1], y = x[, 1]), blockSize = blockSize, overlap = overlap)
+  } else {
+    x2 <- sectionData(data.frame(x = x[, 1], y = y[, 1]), blockSize = blockSize, overlap = overlap)
+  }
+  
+  numSections <- attr(x2, "numSections")
+  
+  
+  wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
+                                  , nFFT = nFFT, numSections = numSections
+                                  , adaptiveWeighting = TRUE, returnWeights = TRUE)
+  
+  # actually calculates the coherency (for use in lapply())
+  # obj is the eigencoefficients (yk's) (weighted, or unweighted, your preference)
+  calculateCoherence <- function(obj, forward = T){
+    denom <- apply(abs(obj$x)^2, 1, sum) %*% t(apply(abs(obj$y)^2, 1, sum))
+    if(forward){
+      ( obj$x %*% Conj(t(obj$y)) ) / sqrt(denom)
+    } else {
+      ( obj$x %*% (t(obj$y)) ) / sqrt(denom)
+    }
+  }
+  
+  coh <- lapply(wtEigenCoef, calculateCoherence, forward = forward)
+  
+  coh.ave.tmp <- matrix(0, nrow = dim(coh[[1]])[1], ncol = dim(coh[[1]])[2])
+  for (i in 1:numSections){
+    coh.ave.tmp <- coh.ave.tmp + coh[[i]]
+  }
+  coh.ave <- coh.ave.tmp / numSections
+  
+  if (msc){
+    abs(coh.ave)^2
+  } else {
+    coh.ave
+  }
 }

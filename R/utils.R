@@ -162,12 +162,20 @@ std <- function( x ){ (x - mean(x))/sd.complex(x) }
 #' 
 #' @export
 blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
-                            , adaptiveWeighting = TRUE){
+                            , adaptiveWeighting = TRUE, returnWeights = FALSE){
   x.spec <- list()
   x.wtEigenCoef <- list()
   
   # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
-  weightedEigen <- function(obj){ obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt }
+  weightedEigen <- function(obj, returnWeights){
+    tmp <- obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt
+    if (returnWeights){
+      attr(tmp, "eigenCoefWt") <- obj$mtm$eigenCoefWt
+    } else {
+      attr(tmp, "eigenCoefWt") <- NULL
+    }
+    tmp
+  }
   # or not... (parameter set)
   nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
   
@@ -177,7 +185,7 @@ blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
                           , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
     
     if (adaptiveWeighting){
-      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen)
+      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen, returnWeights = returnWeights)
     } else {
       x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], nonWeightedEigen)
     }
@@ -186,6 +194,32 @@ blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
   x.wtEigenCoef
 }
 
-stackEigenByFreq <- function(x){
-  print("Not yet sucka!") # god... please don't read this ... #shame.
+
+#' Need to write this.. 
+#' 
+#' Should write a description too..
+#' 
+#' I don't think I need this except for during transfer()... 
+stackEigenByFreq <- function(x, y = NULL){
+  # indexing helper function that grabs and stacks all the eigencoefficients at a frequency
+  eigenByFreq <- function(obj, rowNum, numEl){
+    matrix(unlist(lapply(obj, function(x, idx) x[idx, ], rowNum)), ncol = numEl)
+  }
+  
+  x.design <- list()
+  
+  # stack the eigencoefficients by frequency from each block
+  # form into a single list
+  if (is.null(y)){
+    for (i in 1:nfreq){
+      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 3)))
+    }
+  } else {
+    for (i in 1:nfreq){
+      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 3))
+                            , y = do.call(rbind, lapply(y.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 1)))
+    }
+  }
+  
+  x.design
 }
