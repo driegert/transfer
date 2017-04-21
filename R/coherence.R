@@ -689,13 +689,22 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
   
   if (is.null(freqRange)){
     spec <- lapply(wtEigenCoef, calculateSpec, forward = forward)
+    freqIdx <- NULL
   } else {
     freqIdx <- head(which(freq >= (freqRange[1] - maxFreqOffset) ), 1):tail(which(freq <= (freqRange[2] + maxFreqOffset)), 1)
     spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
   }
   
+  info = list(freq = freq, blockSize = blockSize, overlap = overlap
+              , numSections = numSections
+              , deltat = deltat, nw = nw, k = k, nFFT = nFFT
+              , forward = forward, average = average, msc = msc
+              , freqRange = freqRange, maxFreqOffset = maxFreqOffset
+              , freqIdx = freqIdx, prewhiten = prewhiten
+              , removePeriodic = removePeriodic, sigCutoff = sigCutoff))
+  
   if (average == 0){
-    return(spec)
+    return(list(coh = spec, info = info)
   } else if (average == 1) {
     Sxy.ave <- Reduce('+', lapply(spec, "[[", "Sxy")) / numSections
     Sxx.ave <- Reduce('+', lapply(spec, "[[", "Sxx")) / numSections
@@ -709,8 +718,12 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
   }
   
   if (msc){
-    abs(coh)^2
+    list(coh = abs(coh)^2, info = info)
   } else {
-    coh
+    list(coh = coh, info = info)
   }
+}
+
+coherenceToOffset <- function(coh){
+  
 }
