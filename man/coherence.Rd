@@ -4,13 +4,13 @@
 \alias{coherence}
 \title{Calculates the coherence between two series}
 \usage{
-coherence(x, y, blockSize = length(x), overlap = 0, deltat = 1, nw = 4,
-  k = 7, nFFT = NULL, freqRange = NULL, maxFreqOffset = NULL,
-  standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE,
-  sigCutoff = NULL)
+coherence(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 1,
+  nw = 4, k = 7, nFFT = NULL, forward = TRUE, average = 1,
+  msc = FALSE, freqRange = NULL, maxFreqOffset = NULL,
+  prewhiten = FALSE, removePeriodic = TRUE, sigCutoff = NULL)
 }
 \arguments{
-\item{x}{A \code{numeric} vector representing the first time series.}
+\item{x}{A \code{data.frame} whose columns are the time domain input series.}
 
 \item{y}{A \code{numeric} vector containing the response series.}
 
@@ -30,7 +30,32 @@ floor(2*nw - 1) and no larger than floor(2*nw).}
 
 \item{nFFT}{A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
 the zeropadding amount).}
+
+\item{forward}{Indicates whether the forward (TRUE) or reverse (FALSE)
+coherence should be calculated.}
+
+\item{average}{An \code{integer} representing how the average across blocks 
+should be calculated;
+0 - no average, return all the individual block information; 
+1 - average the cross and auto-spectra across blocks, then calculate the coherency
+2 - estimate the coherency for each block, average the coherencey across blocks
+3 - estimate the MSC for each block, average the MSC across blocks.}
+
+\item{freqRange}{A \code{numeric} vector containing two elements with the start 
+and end location for the band on which to estimate the coherence.}
+
+\item{maxFreqOffset}{A \code{numeric} value indicating the maximum offset coherence to 
+calculate in the specified band.}
+
+\item{prewhiten}{NOT YET IMPLEMENTED}
+
+\item{removePeriodic}{NOT YET IMPLEMENTED}
+
+\item{sigCutoff}{NOT YET IMPLEMENTED}
 }
 \description{
 Estimates the frequency domain coherence using the multitaper method.
+}
+\details{
+MSC stands for Magnitude Squared Coherence.
 }

@@ -9,3 +9,6 @@ stackEigenByFreq(x, y = NULL)
 \description{
 Should write a description too..
 }
+\details{
+I don't think I need this except for during transfer()...
+}

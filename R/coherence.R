@@ -594,20 +594,47 @@ adaptiveWeights <- function(eigenSpec, ev, halfFreqArray = FALSE, weightsOnly = 
 #' floor(2*nw - 1) and no larger than floor(2*nw).
 #' @param nFFT A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
 #' the zeropadding amount).
+#' @param forward Indicates whether the forward (TRUE) or reverse (FALSE)
+#' coherence should be calculated.
+#' @param average An \code{integer} representing how the average across blocks 
+#' should be calculated;
+#' 0 - no average, return all the individual block information; 
+#' 1 - average the cross and auto-spectra across blocks, then calculate the coherency
+#' 2 - estimate the coherency for each block, average the coherencey across blocks
+#' 3 - estimate the MSC for each block, average the MSC across blocks.
+#' @param freqRange A \code{numeric} vector containing two elements with the start 
+#' and end location for the band on which to estimate the coherence.
+#' @param maxFreqOffset A \code{numeric} value indicating the maximum offset coherence to 
+#' calculate in the specified band.
+#' @param prewhiten NOT YET IMPLEMENTED
+#' @param removePeriodic NOT YET IMPLEMENTED
+#' @param sigCutoff NOT YET IMPLEMENTED
+#' 
+#' @details MSC stands for Magnitude Squared Coherence.
 #' 
 #' @export
 coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 1
-                      , nw = 4, k = 7, nFFT = NULL, forward = TRUE, msc = FALSE
-                      , freqRange = NULL, maxFreqOffset = NULL, standardize = FALSE
-                      , prewhiten = TRUE, removePeriodic = TRUE, sigCutoff = NULL)
+                      , nw = 4, k = 7, nFFT = NULL, forward = TRUE
+                      , average = 1, msc = FALSE
+                      , freqRange = NULL, maxFreqOffset = NULL
+                      , prewhiten = FALSE, removePeriodic = TRUE, sigCutoff = NULL)
 {
+  ### I don't believe standardization is needed for coherence ... 
   # standardize the series by removing the mean and dividing by the standard deviation
-  if( standardize ){
-    stdPars <- vector( mode = "list" )
-    stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
-    stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
-    x <- data.frame( lapply( x, std ) )
-    y <- data.frame( lapply( y, std ) )
+  # if( standardize ){
+  #   stdPars <- vector( mode = "list" )
+  #   stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
+  #   stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
+  #   x <- data.frame( lapply( x, std ) )
+  #   y <- data.frame( lapply( y, std ) )
+  # }
+  
+  if (!any(average == 0:3)){ 
+    stop("average must have an integer value between 0 and 3.")
+  }
+  
+  if (is.null(freqRange) && !is.null(maxFreqOffset)){
+    stop("maxFreqOffset implies that freqRange should be assigned.")
   }
   
   # number of frequencies bins to use (zero-pad length)
@@ -631,30 +658,59 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
   
   wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
                                   , nFFT = nFFT, numSections = numSections
-                                  , adaptiveWeighting = TRUE, returnWeights = TRUE)
+                                  , adaptiveWeighting = TRUE, returnWeights = FALSE)
   
   # actually calculates the coherency (for use in lapply())
   # obj is the eigencoefficients (yk's) (weighted, or unweighted, your preference)
-  calculateCoherence <- function(obj, forward = T){
-    denom <- apply(abs(obj$x)^2, 1, sum) %*% t(apply(abs(obj$y)^2, 1, sum))
+  # calculateCoherence <- function(obj, forward = T, idx = NULL){
+  #   if (is.null(idx)){ idx <- 1:dim(obj$x)[1] }
+  #   denom <- apply(abs(obj$x[idx, , drop = F])^2, 1, sum) %*% t(apply(abs(obj$y[idx, , drop = F])^2, 1, sum))
+  #   if(forward){
+  #     ( obj$x[idx, , drop = F] %*% Conj(t(obj$y[idx, , drop = F])) ) / sqrt(denom)
+  #   } else {
+  #     ( obj$x[idx, , drop = F] %*% (t(obj$y[idx, , drop = F])) ) / sqrt(denom)
+  #   }
+  # }
+  
+  # This isn't really the spectrum/spectra - they're unweighted for use in the 
+  # coherence calculation
+  calculateSpec <- function(obj, forward = T, idx = NULL){
+    if (is.null(idx)){ idx <- 1:dim(obj$x)[1] }
+    Sxx <- apply(abs(obj$x[idx, , drop = F])^2, 1, sum)
+    Syy <- apply(abs(obj$y[idx, , drop = F])^2, 1, sum)
     if(forward){
-      ( obj$x %*% Conj(t(obj$y)) ) / sqrt(denom)
+      Sxy <- ( obj$x[idx, , drop = F] %*% Conj(t(obj$y[idx, , drop = F])) )
     } else {
-      ( obj$x %*% (t(obj$y)) ) / sqrt(denom)
+      Sxy <- ( obj$x[idx, , drop = F] %*% (t(obj$y[idx, , drop = F])) )
     }
+    
+    list(Sxy = Sxy, Sxx = Sxx, Syy = Syy)
   }
   
-  coh <- lapply(wtEigenCoef, calculateCoherence, forward = forward)
-  
-  coh.ave.tmp <- matrix(0, nrow = dim(coh[[1]])[1], ncol = dim(coh[[1]])[2])
-  for (i in 1:numSections){
-    coh.ave.tmp <- coh.ave.tmp + coh[[i]]
+  if (is.null(freqRange)){
+    spec <- lapply(wtEigenCoef, calculateSpec, forward = forward)
+  } else {
+    freqIdx <- head(which(freq >= (freqRange[1] - maxFreqOffset) ), 1):tail(which(freq <= (freqRange[2] + maxFreqOffset)), 1)
+    spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
   }
-  coh.ave <- coh.ave.tmp / numSections
+  
+  if (average == 0){
+    return(spec)
+  } else if (average == 1) {
+    Sxy.ave <- Reduce('+', lapply(spec, "[[", "Sxy")) / numSections
+    Sxx.ave <- Reduce('+', lapply(spec, "[[", "Sxx")) / numSections
+    Syy.ave <- Reduce('+', lapply(spec, "[[", "Syy")) / numSections
+    coh <- Sxy.ave / sqrt(Sxx.ave %*% t(Syy.ave))
+  } else if (average == 2) {
+    coh <- Reduce('+', lapply(spec, function(obj){ obj$Sxy / sqrt(obj$Sxx %*% t(obj$Syy)) })) / numSections
+  } else if (average == 3) {
+    coh <- Reduce('+', lapply(spec, function(obj){ abs(obj$Sxy)^2 / (obj$Sxx %*% t(obj$Syy)) })) / numSections
+    return(coh)
+  }
   
   if (msc){
-    abs(coh.ave)^2
+    abs(coh)^2
   } else {
-    coh.ave
+    coh
   }
 }
