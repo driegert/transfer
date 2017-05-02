@@ -280,6 +280,11 @@ cohPhaseByFreq <- function(coh, offsetIdx){
   phse <- phse / length(coh$coherency)
 }
 
+#' Obtain marginal MSC
+#' 
+#' Maybe ... 
+#' 
+#' @export
 mscFromCoh <- function(coh, jackknife = FALSE){
   msc <- rep(0, dim(coh$coherency[[1]])[1])
   jkVar <- rep(NA, length(msc))
@@ -695,16 +700,20 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
     spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
   }
   
-  info = list(freq = freq, blockSize = blockSize, overlap = overlap
+  subFreq <- freq[freqIdx]
+  info = list(allFreq = freq, blockSize = blockSize, overlap = overlap
               , numSections = numSections
               , deltat = deltat, nw = nw, k = k, nFFT = nFFT
               , forward = forward, average = average, msc = msc
-              , freqRange = freqRange, maxFreqOffset = maxFreqOffset
+              , freqRange = freqRange
+              , freqRangeIdx = c(head(which(freq >= freqRange[1]), 1), tail(which(freq <= freqRange[2]), 1))
+              , maxFreqOffset = maxFreqOffset
+              , maxFreqOffsetIdx = tail(which(freq <= maxFreqOffset), 1) - 1 #-1 due to 0 frequency
               , freqIdx = freqIdx, prewhiten = prewhiten
-              , removePeriodic = removePeriodic, sigCutoff = sigCutoff))
+              , removePeriodic = removePeriodic, sigCutoff = sigCutoff)
   
   if (average == 0){
-    return(list(coh = spec, info = info)
+    return(list(freq = subFreq, coh = spec, info = info))
   } else if (average == 1) {
     Sxy.ave <- Reduce('+', lapply(spec, "[[", "Sxy")) / numSections
     Sxx.ave <- Reduce('+', lapply(spec, "[[", "Sxx")) / numSections
@@ -714,16 +723,65 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
     coh <- Reduce('+', lapply(spec, function(obj){ obj$Sxy / sqrt(obj$Sxx %*% t(obj$Syy)) })) / numSections
   } else if (average == 3) {
     coh <- Reduce('+', lapply(spec, function(obj){ abs(obj$Sxy)^2 / (obj$Sxx %*% t(obj$Syy)) })) / numSections
-    return(coh)
+    return(freq = subFreq, coh)
   }
   
   if (msc){
-    list(coh = abs(coh)^2, info = info)
+    list(freq = subFreq, coh = abs(coh)^2, info = info)
   } else {
-    list(coh = coh, info = info)
+    list(freq = subFreq, coh = coh, info = info)
   }
 }
 
-coherenceToOffset <- function(coh){
+#' Convert frequency vs. frequency coherence to offset vs frequency
+#' 
+#' Converts from a "diagonal" coherence matrix to a "horizontal" coherence matrix.
+#' 
+#' @param obj An object as returned by \link{coherence}.
+#' 
+#' @details Takes the rows of the diagonal matrix centered at the frequencies 
+#' in \code{freqRange} with \code{maxFreqOffset} values on either side.  These rows then 
+#' become the columns of the returned offset coherence matrix.
+#' 
+#' The offset is from the frequency in x
+#' 
+#' @return A list containing the centre frequencies, offset values, offset coherences, and 
+#' all the extra information returned by \link{coherence}.
+#' 
+#' @export
+coherenceToOffset <- function(obj){
+  startIdx <- obj$info$maxFreqOffsetIdx + 1
+  endIdx <- length(obj$freq) - obj$info$maxFreqOffsetIdx
   
+  sectIdx <- seq(startIdx - obj$info$maxFreqOffsetIdx, endIdx - obj$info$maxFreqOffsetIdx, by=1)
+  
+  blockIdxLst <- as.list(as.data.frame(mapply(":", sectIdx, sectIdx+(2*obj$info$maxFreqOffsetIdx))))
+  
+  offsetCoh <- unname(simplify2array(lapply(blockIdxLst, function(x) { obj$coh[x[1] + obj$info$maxFreqOffsetIdx, x] })))
+  
+  list(freq = obj$freq[startIdx:endIdx]
+       , offset = freqOffsetAxis(obj$info$nFFT, obj$info$maxFreqOffset, obj$info$deltat)
+       , offsetCoh = offsetCoh, info = obj$info)
+}
+
+#' Averages across the rows of the offset coherence matrix
+#' 
+#' Estimates the average coherence for each offset within a frequency band.
+#' 
+#' @param obj A \code{list} as returned by \link{coherenceToOffset}.
+#' 
+#' @detail None yet.. 
+#' 
+#' @export
+marginalCoh <- function(obj, msc = TRUE){
+  if (obj$info$msc){
+    mcoh <- apply(obj$offsetCoh, 1, mean)
+  } else if (msc == TRUE) {
+    mcoh <- apply(abs(obj$offsetCoh)^2, 1, mean)
+    obj$info$msc = TRUE
+  } else {
+    mcoh <- apply(obj$offsetCoh, 1, mean)
+  }
+  
+  list(offset = obj$offset, marginalCoh = mcoh, info = obj$info)
 }
