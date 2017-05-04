@@ -624,16 +624,6 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
                       , freqRange = NULL, maxFreqOffset = NULL
                       , prewhiten = FALSE, removePeriodic = TRUE, sigCutoff = NULL)
 {
-  ### I don't believe standardization is needed for coherence ... 
-  # standardize the series by removing the mean and dividing by the standard deviation
-  # if( standardize ){
-  #   stdPars <- vector( mode = "list" )
-  #   stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
-  #   stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
-  #   x <- data.frame( lapply( x, std ) )
-  #   y <- data.frame( lapply( y, std ) )
-  # }
-  
   if (!any(average == 0:3)){ 
     stop("average must have an integer value between 0 and 3.")
   }
@@ -664,18 +654,6 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
   wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
                                   , nFFT = nFFT, numSections = numSections
                                   , adaptiveWeighting = TRUE, returnWeights = FALSE)
-  
-  # actually calculates the coherency (for use in lapply())
-  # obj is the eigencoefficients (yk's) (weighted, or unweighted, your preference)
-  # calculateCoherence <- function(obj, forward = T, idx = NULL){
-  #   if (is.null(idx)){ idx <- 1:dim(obj$x)[1] }
-  #   denom <- apply(abs(obj$x[idx, , drop = F])^2, 1, sum) %*% t(apply(abs(obj$y[idx, , drop = F])^2, 1, sum))
-  #   if(forward){
-  #     ( obj$x[idx, , drop = F] %*% Conj(t(obj$y[idx, , drop = F])) ) / sqrt(denom)
-  #   } else {
-  #     ( obj$x[idx, , drop = F] %*% (t(obj$y[idx, , drop = F])) ) / sqrt(denom)
-  #   }
-  # }
   
   # This isn't really the spectrum/spectra - they're unweighted for use in the 
   # coherence calculation
@@ -723,7 +701,8 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
     coh <- Reduce('+', lapply(spec, function(obj){ obj$Sxy / sqrt(obj$Sxx %*% t(obj$Syy)) })) / numSections
   } else if (average == 3) {
     coh <- Reduce('+', lapply(spec, function(obj){ abs(obj$Sxy)^2 / (obj$Sxx %*% t(obj$Syy)) })) / numSections
-    return(freq = subFreq, coh)
+    info$msc <- TRUE
+    return(list(freq = subFreq, coh = coh, info = info))
   }
   
   if (msc){
