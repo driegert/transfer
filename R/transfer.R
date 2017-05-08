@@ -48,7 +48,7 @@
 #' 
 #' @export
 tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k = 7, nFFT = NULL
-               , method = c("svd", "sft"), adaptiveWeighting = TRUE
+               , method = c("svd", "sft", "robust"), adaptiveWeighting = TRUE
                , freqRange = NULL, freqOffset = NULL
                , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 {
@@ -60,6 +60,9 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
   }
+  
+  x.nCol <- dim(x)[2]
+  y.nCol <- dim(y)[2]
   
   # number of frequencies bins to use (zero-pad length)
   if (is.null(nFFT)){
@@ -80,7 +83,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
   y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
   
-  if (method[1] == "svd"){
+  if (method[1] == "svd" | method[1] == "robust"){
     numSections <- attr(x2, "numSections")
     
     x.wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
@@ -100,13 +103,20 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     # stack the eigencoefficients by frequency from each block
     # form into a single list
     for (i in 1:nfreq){
-      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 3))
-                            , y = do.call(rbind, lapply(y.wtEigenCoef, eigenByFreq, rowNum = i, numEl = 1)))
+      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = x.nCol))
+                            , y = do.call(rbind, lapply(y.wtEigenCoef, eigenByFreq, rowNum = i, numEl = y.nCol)))
     }
     
-    H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
-    
-    H.mat <- do.call(rbind, lapply(H.tmp, "[[", "coef"))
+    # this could be optimized... duplicate objects everywhere <sigh>
+    if (method[1] == "robust"){
+      H.all <- mapply(c, x.design, lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) }), SIMPLIFY = F)
+      #testing the timing
+      H.tmp <- lapply(H.all[seq(1, 8193, length.out = 100)], robust.tf)
+      H.mat <- matrix(unlist(H.tmp), ncol = x.nCol, byrow = T)
+    } else {
+      H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
+      H.mat <- do.call(rbind, lapply(H.tmp, "[[", "coef"))
+    }
   } else if (method[1] == "sft") {
     # taper the blocked data
     x3 <- taper(x2, nw = nw, k = k)
@@ -141,6 +151,97 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   attr(H, "adaptiveWeighting") <- adaptiveWeighting
   
   H
+}
+
+# obj is a list, containing the design matrix and 
+# response vector, obj$x and obj$y respectively at a particular frequency (I guess.. .)
+# H is the transfer function matrix (H.mat in the above)
+robust.tf <- function(obj){
+  # from page 195 of Chave and Jones:
+  # 2a) compute the residuals
+  r <- obj$y - (obj$x %*% t(obj$coef))
+  # 2b) the scale using (5.40)
+  d <- median(abs(r - median(r)))
+  # 2c) residual sum of squares (r^{H} dot r)
+  rss <- Re(Conj(t(r)) %*% r)[1]
+  rss2 <- 3*rss
+  
+  # alpha for the Huber weights (usually 1.5?)
+  alph <- 1.5
+  
+  #### START HERE WHEN CHECKING IT OUT
+  # 2d) hat matrix diagonal (5.50)
+  U <- diag(1, nrow = dim(obj$x)[1], ncol = dim(obj$x)[1])
+  H <- sqrt(U) %*% obj$x %*% solve(hConj(obj$x) %*% U %*% obj$x) %*% hConj(obj$x) %*% sqrt(U)
+  h <- diag(H)
+  
+  # number of predictors:
+  p <- dim(obj$x)[2]
+  
+  Xi <- sum(diag(U))
+  Xi.min <- Xi
+  
+  # Huber weights? (perhaps?)
+  W <- diag(1, dim(obj$x)[1], dim(obj$x)[1])
+  
+  chi <- max( Re(h * p / sum(h)) )
+  alpha <- pbeta(chi, p, Xi.min - p)
+  alpha <- alpha - (1-alpha)/2
+  chi <- qbeta(alpha, p, Xi.min - p)
+  
+  while(chi > qbeta(0.95, p, Xi.min - p)) {
+    # print(paste("Outer: chi = ", chi))
+    innerIterCount <- 0
+    while (abs(rss2 - rss) / rss  > 0.01){
+      if (innerIterCount > 5){ break; } else { innerIterCount <- innerIterCount + 1 }
+      # print(paste("Inner - rss ratio: ", abs(rss2 - rss) / rss))
+      rss <- rss2
+      
+      # Compute Huber weights - step 4
+      V <- diag( ifelse(abs(r / d)[,,drop=T] <= alph, 1, alph / abs(r/d)[,,drop=T]),
+                 length(r[,,drop=T]), length(r[,,drop=T]) )
+      
+      # y's are the "driving statistic" (5.48 in Chave & Jones)
+      y <- Xi * h / p
+      
+      W <- diag(diag(W) * exp(exp(-chi^2)) * exp(-exp(chi*(y - chi))))
+      w <- diag(W)
+      
+      elim <- which(round(abs(w*diag(V)), digits = 12) == 0)
+      if (length(elim) > 0){
+        print("This hit!")
+        obj$x <- obj$x[-elim, ]
+        obj$y <- obj$y[-elim]
+      }
+      
+      # weight matrix
+      U <- V %*% W
+      
+      # bounded influence estimator
+      z <- solve(hConj(obj$x) %*% W %*% V %*% obj$x) %*% (hConj(obj$x) %*% W %*% V %*% obj$y)
+      
+      # residuals
+      r <- obj$y - obj$x %*% z
+      
+      # new scale
+      d <- median(abs(r - median(r))) / 0.44845
+      
+      # residual sum of squares
+      rss2 <- Re(hConj(r) %*% U %*% r)
+      
+      H <- sqrt(U) %*% obj$x %*% solve(hConj(obj$x) %*% U %*% obj$x) %*% hConj(obj$x) %*% sqrt(U)
+      h <- diag(H)
+      
+      Xi <- sum(diag(U))
+    }
+    # print(paste("Z: ", abs(z)))
+    # chi <- chi - 0.0005 # I don't know what this should be ....
+    alpha <- alpha - (1-alpha)/2
+    chi <- qbeta(alpha, p, Xi.min - p)
+    rss <- 3*rss2
+  }
+  
+  z
 }
 
 #' Estimate the frequency-domain transfer function

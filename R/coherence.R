@@ -650,33 +650,30 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
   
   numSections <- attr(x2, "numSections")
   
+  # wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
+  #                                 , nFFT = nFFT, numSections = numSections
+  #                                 , adaptiveWeighting = TRUE, returnWeights = FALSE)
+  # 
+  # if (is.null(freqRange)){
+  #   spec <- lapply(wtEigenCoef, calculateSpec, forward = forward)
+  #   freqIdx <- NULL
+  # } else {
+  #   freqIdx <- head(which(freq >= (freqRange[1] - maxFreqOffset) ), 1):tail(which(freq <= (freqRange[2] + maxFreqOffset)), 1)
+  #   spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
+  # }
   
-  wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
-                                  , nFFT = nFFT, numSections = numSections
-                                  , adaptiveWeighting = TRUE, returnWeights = FALSE)
-  
-  # This isn't really the spectrum/spectra - they're unweighted for use in the 
-  # coherence calculation
-  calculateSpec <- function(obj, forward = T, idx = NULL){
-    if (is.null(idx)){ idx <- 1:dim(obj$x)[1] }
-    Sxx <- apply(abs(obj$x[idx, , drop = F])^2, 1, sum)
-    Syy <- apply(abs(obj$y[idx, , drop = F])^2, 1, sum)
-    if(forward){
-      Sxy <- ( obj$x[idx, , drop = F] %*% Conj(t(obj$y[idx, , drop = F])) )
-    } else {
-      Sxy <- ( obj$x[idx, , drop = F] %*% (t(obj$y[idx, , drop = F])) )
-    }
-    
-    list(Sxy = Sxy, Sxx = Sxx, Syy = Syy)
-  }
   
   if (is.null(freqRange)){
-    spec <- lapply(wtEigenCoef, calculateSpec, forward = forward)
     freqIdx <- NULL
   } else {
     freqIdx <- head(which(freq >= (freqRange[1] - maxFreqOffset) ), 1):tail(which(freq <= (freqRange[2] + maxFreqOffset)), 1)
-    spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
   }
+  
+  # spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
+  spec <- blockedSpec(x2, deltat = deltat, nw = nw, k = k, nFFT = nFFT
+                      , numSections = numSections, adaptiveWeighting = TRUE, forward = TRUE
+                      , idx = freqIdx)
+  
   
   subFreq <- freq[freqIdx]
   info = list(allFreq = freq, blockSize = blockSize, overlap = overlap
@@ -691,6 +688,7 @@ coherence <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 
               , removePeriodic = removePeriodic, sigCutoff = sigCutoff)
   
   if (average == 0){
+    info$msc <- FALSE
     return(list(freq = subFreq, coh = spec, info = info))
   } else if (average == 1) {
     Sxy.ave <- Reduce('+', lapply(spec, "[[", "Sxy")) / numSections

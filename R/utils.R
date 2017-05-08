@@ -166,19 +166,6 @@ blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
   x.spec <- list()
   x.wtEigenCoef <- list()
   
-  # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
-  weightedEigen <- function(obj, returnWeights){
-    tmp <- obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt
-    if (returnWeights){
-      attr(tmp, "eigenCoefWt") <- obj$mtm$eigenCoefWt
-    } else {
-      attr(tmp, "eigenCoefWt") <- NULL
-    }
-    tmp
-  }
-  # or not... (parameter set)
-  nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
-  
   # estimate the eigenspectra and weights and multiply the two
   for (i in 1:numSections){
     x.spec[[i]] <- lapply(x[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
@@ -194,6 +181,47 @@ blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
   x.wtEigenCoef
 }
 
+## hopefully slightly more memory efficient than calling 
+# blockedEigenCoef() followed by calculateSpec().
+blockedSpec <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
+                        , adaptiveWeighting = TRUE, forward = TRUE, idx = NULL)
+{
+  spec <- list()
+  
+  if (is.null(idx)){ idx <- 1:length(x[[1]]) }
+  
+  # estimate the eigenspectra and weights and multiply the two
+  for (i in 1:numSections){
+    x.spec <- lapply(x[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
+                          , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
+    
+    if (adaptiveWeighting){
+      x.wtEigenCoef <- lapply(x.spec, weightedEigen, returnWeights = FALSE)
+    } else {
+      x.wtEigenCoef <- lapply(x.spec, nonWeightedEigen)
+    }
+    
+    spec[[i]] <- calculateSpec(x.wtEigenCoef, forward = forward, idx = idx)
+  }
+  
+  spec
+}
+
+#######################################
+## These are helper functions for blockedSpec() and blockedEigenCoef()
+# multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
+weightedEigen <- function(obj, returnWeights = FALSE){
+  tmp <- obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt
+  if (returnWeights){
+    attr(tmp, "eigenCoefWt") <- obj$mtm$eigenCoefWt
+  } else {
+    attr(tmp, "eigenCoefWt") <- NULL
+  }
+  tmp
+}
+# or not... (parameter set)
+nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
+#######################################
 
 #' Need to write this.. 
 #' 
@@ -222,4 +250,24 @@ stackEigenByFreq <- function(x, y = NULL){
   }
   
   x.design
+}
+
+# This isn't really the spectrum/spectra - they're unnormalized for use in the 
+# coherence calculation
+calculateSpec <- function(obj, forward = TRUE, idx = NULL){
+  if (is.null(idx)){ idx <- 1:dim(obj$x)[1] }
+  Sxx <- apply(abs(obj$x[idx, , drop = F])^2, 1, sum)
+  Syy <- apply(abs(obj$y[idx, , drop = F])^2, 1, sum)
+  if(forward){
+    Sxy <- ( obj$x[idx, , drop = F] %*% Conj(t(obj$y[idx, , drop = F])) )
+  } else {
+    Sxy <- ( obj$x[idx, , drop = F] %*% (t(obj$y[idx, , drop = F])) )
+  }
+  
+  list(Sxy = Sxy, Sxx = Sxx, Syy = Syy)
+}
+
+## Takes the conjugate transpose since this gets used a lot
+hConj <- function(x){
+  t(Conj(x))
 }
