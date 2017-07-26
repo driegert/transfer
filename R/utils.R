@@ -162,19 +162,22 @@ std <- function( x ){ (x - mean(x))/sd.complex(x) }
 #' 
 #' @export
 blockedEigenCoef <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
-                            , adaptiveWeighting = TRUE, returnWeights = FALSE){
-  x.spec <- list()
+                            , adaptiveWeighting = TRUE, returnWeights = FALSE, idx = NULL){
+  
+  if (is.null(idx)){ idx <- 1:(nFFT/2+1) }
+  
   x.wtEigenCoef <- list()
   
   # estimate the eigenspectra and weights and multiply the two
   for (i in 1:numSections){
-    x.spec[[i]] <- lapply(x[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
+    x.spec <- lapply(x[[i]], spec.mtm, deltat = deltat, dtUnits = "second", nw = nw
                           , k = k, nFFT = nFFT, plot = FALSE, returnInternals = TRUE)
     
     if (adaptiveWeighting){
-      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], weightedEigen, returnWeights = returnWeights)
+      x.wtEigenCoef[[i]] <- lapply(x.spec, weightedEigen, returnWeights = returnWeights
+                                   , idx = idx)
     } else {
-      x.wtEigenCoef[[i]] <- lapply(x.spec[[i]], nonWeightedEigen)
+      x.wtEigenCoef[[i]] <- lapply(x.spec, nonWeightedEigen)
     }
   }
   
@@ -210,17 +213,20 @@ blockedSpec <- function(x, deltat = 1, nw, k, nFFT, numSections = length(x)
 #######################################
 ## These are helper functions for blockedSpec() and blockedEigenCoef()
 # multiplies the eigencoefficients by the adaptive weights of a spec.mtm object
-weightedEigen <- function(obj, returnWeights = FALSE){
-  tmp <- obj$mtm$eigenCoefs * obj$mtm$eigenCoefWt
+weightedEigen <- function(obj, returnWeights = FALSE, idx = NULL){
+  if (is.null(idx)){ idx <- 1:obj$mtm$nfreqs }
+  tmp <- obj$mtm$eigenCoefs[idx, ] * obj$mtm$eigenCoefWt[idx, ]
   if (returnWeights){
-    attr(tmp, "eigenCoefWt") <- obj$mtm$eigenCoefWt
+    attr(tmp, "eigenCoefWt") <- obj$mtm$eigenCoefWt[idx, ]
   } else {
     attr(tmp, "eigenCoefWt") <- NULL
   }
   tmp
 }
 # or not... (parameter set)
-nonWeightedEigen <- function(obj){ obj$mtm$eigenCoefs }
+nonWeightedEigen <- function(obj, idx = NULL){
+  if (is.null(idx)){ obj$mtm$eigenCoefs } else {obj$mtm$eigenCoefs[idx, ] }
+}
 #######################################
 
 #' Need to write this.. 

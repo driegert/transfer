@@ -5,7 +5,7 @@
 \title{Calculates the eigencoefficents of a blocked time series}
 \usage{
 blockedEigenCoef(x, deltat = 1, nw, k, nFFT, numSections = length(x),
-  adaptiveWeighting = TRUE, returnWeights = FALSE)
+  adaptiveWeighting = TRUE, returnWeights = FALSE, idx = NULL)
 }
 \arguments{
 \item{x}{A \code{list} of data.frames as returned by \link{sectionData}.}

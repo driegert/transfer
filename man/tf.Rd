@@ -5,7 +5,7 @@
 \title{Estimate the frequency-domain transfer function}
 \usage{
 tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
-  k = 7, nFFT = NULL, method = c("svd", "sft"),
+  k = 7, nFFT = NULL, method = c("svd", "sft", "robust"),
   adaptiveWeighting = TRUE, freqRange = NULL, freqOffset = NULL,
   standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 }

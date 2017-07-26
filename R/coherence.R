@@ -762,3 +762,71 @@ marginalCoh <- function(obj, msc = TRUE){
   
   list(offset = obj$offset, marginalCoh = mcoh, info = obj$info)
 }
+
+#' @export
+coherenceByChunk <- function(x, y = NULL, blockSize = length(x), overlap = 0, deltat = 1
+                           , nw = 4, k = 7, nFFT = NULL, forward = TRUE
+                           , fileName = NULL, idxIncr = NULL)
+{
+  # number of frequencies bins to use (zero-pad length)
+  if (is.null(nFFT)){
+    nFFT <- 2^(floor(log2(blockSize)) + 2)
+  }
+  
+  if (is.null(idxIncr)){
+    idxIncr <- 1024
+  }
+  
+  # determine the positive values of the frequencies.
+  freq <- seq(0, 1/(2*deltat), by = 1/(nFFT*deltat))
+  nfreq <- length(freq)
+  
+  # block the data (x2, y2 are a list of data.frames)
+  if (is.null(y)){
+    x2 <- sectionData(data.frame(x = x[, 1], y = x[, 1]), blockSize = blockSize, overlap = overlap)
+  } else {
+    x2 <- sectionData(data.frame(x = x[, 1], y = y[, 1]), blockSize = blockSize, overlap = overlap)
+  }
+  
+  numSections <- attr(x2, "numSections")
+  freqIdx <- 1:(nFFT/2+1)
+  # spec <- lapply(wtEigenCoef, calculateSpec, forward = forward, idx = freqIdx)
+  eigenCo <- blockedEigenCoef(x = x2, deltat = deltat, nw = nw, k = k
+                           , nFFT = nFFT, numSections = numSections
+                           , adaptiveWeighting = FALSE)
+  
+  numChunks <- max(1, ((nFFT/2) / idxIncr))
+  if (numChunks == 1){
+    ret <- lapply(eigenCo, chunkCoherence, xIdx = c(1, nFFT/2+1), yIdx = c(1, nFFT/2+1))
+    return(ret)
+  } else {
+    idxStart <- c(1, seq(1026, nFFT/2 + 1, by = 1024))
+    idxEnd <- idxStart + c(1024, rep(1023, length(idxStart) - 1))
+    
+    for (i in 1:numChunks){
+      for (j in 1:numChunks){
+        ret <- lapply(eigenCo, chunkCoherence, xIdx = c(idxStart[i], idxEnd[i])
+                      , yIdx = c(idxStart[j], idxEnd[j]))
+        
+        if (!is.null(fileName)){
+          saveRDS(ret, file = paste0(fileName, "_block_", i, "-", j, ".rds"))
+        }
+      }
+    }
+  }
+}
+
+chunkCoherence <- function(obj, xIdx, yIdx, forward = TRUE){
+  if (forward){
+    Sxy <- obj$x[xIdx[1]:xIdx[2], ] %*% Conj(t(obj$y[yIdx[1]:yIdx[2], ]))
+  } else {
+    Sxy <- obj$x[xIdx[1]:xIdx[2], ] %*% t(obj$y[yIdx[1]:yIdx[2], ])
+  }
+  
+  Sxx <- apply(obj$x[xIdx[1]:xIdx[2], ] * Conj(obj$x[xIdx[1]:xIdx[2], ]), 1, sum)
+  Syy <- apply(obj$y[yIdx[1]:yIdx[2], ] * Conj(obj$y[yIdx[1]:yIdx[2], ]), 1, sum)
+  
+  denom <- sqrt(Sxx %*% t(Syy))
+  
+  list(Sxy = Sxy, denom = denom, Sxx = Sxx, Syy = Syy, xIdx = xIdx, yIdx = yIdx)
+}
