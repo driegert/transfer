@@ -48,10 +48,25 @@
 #' 
 #' @export
 tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k = 7, nFFT = NULL
-               , method = c("svd", "sft", "robust"), adaptiveWeighting = TRUE
+               , method = c("svd", "sft", "robust", "svdBendat"), lOrd = NULL
+               , adaptiveWeighting = TRUE
                , freqRange = NULL, freqOffset = NULL
-               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
+               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE
+               , nodes = 1)
 {
+  x.nCol <- dim(x)[2]
+  y.nCol <- dim(y)[2]
+  
+  if (nodes == 1){
+    warning("'nodes' is set to 1.  You may want to run this in parallel to gain some speed.")
+  }
+  
+  if (is.NULL(lOrd) & method[1] == "svdBendat"){
+    lOrd <- 1:x.nCol
+  } else if (method[1] == "svdBendat" & length(lOrd) != x.nCol){
+    stop("Right now, length of 'lOrd' must have same length as number of columns of 'x' data.frame.")
+  }
+  
   # standardize the series by removing the mean and dividing by the standard deviation
   if( standardize ){
     stdPars <- vector( mode = "list" )
@@ -60,9 +75,6 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     x <- data.frame( lapply( x, std ) )
     y <- data.frame( lapply( y, std ) )
   }
-  
-  x.nCol <- dim(x)[2]
-  y.nCol <- dim(y)[2]
   
   # number of frequencies bins to use (zero-pad length)
   if (is.null(nFFT)){
@@ -83,7 +95,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
   y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
   
-  if (method[1] == "svd" | method[1] == "robust"){
+  if (method[1] != "sft"){
     numSections <- attr(x2, "numSections")
     
     x.wtEigenCoef <- blockedEigenCoef(x2, deltat = deltat, nw = nw, k = k
@@ -113,9 +125,12 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
       #testing the timing
       H.tmp <- lapply(H.all[seq(1, 8193, length.out = 100)], robust.tf)
       H.mat <- matrix(unlist(H.tmp), ncol = x.nCol, byrow = T)
-    } else {
+    } else if (method[1] == "svd"){
       H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
       H.mat <- do.call(rbind, lapply(H.tmp, "[[", "coef"))
+    } else if (method[1] == "svdBendat"){
+      H.tmp <- lapply(x.design, tfMiso, lOrd = lOrd)
+      H.mat <- matrix(unlist(H.tmp), ncol = x.nCol, byrow = T)
     }
   } else if (method[1] == "sft") {
     # taper the blocked data
@@ -151,6 +166,30 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   attr(H, "adaptiveWeighting") <- adaptiveWeighting
   
   H
+}
+
+# helper function that performs the regressions based on residuals, then returns the proper 
+# transfer functions.  This is mostly based on chapter 7.3 of Bendat and Piersol - Random Data
+# Assumes the same time-domain block structure as what was passed to tf() above.
+# Lord - the order that the regressions should take place before slamming everything back together 
+# ... "SLAMMING" a la equation (7.100) in Bendat and Piersol.
+tfMiso <- function(obj, lOrd){
+  nReg <- length(lOrd) # number of intermediate regressions
+  drow <- dim(obj$x)[1]
+  dcol <- dim(obj$x)[2]
+  
+  X <- obj$x[, lOrd]
+  
+  L <- diag(as.complex(1), dcol, dcol)
+  for (i in 2:nReg){
+    L[1:(i-1), i] <- svdRegression(x = X[, 1:(i-1)], y = X[, i])$coef
+  }
+  
+  Ly <- t(svdRegression(x = X, y = obj$y)$coef)
+  
+  H <- svdRegression(x = L, y = Ly)$coef
+  
+  H[, order(lOrd)]
 }
 
 # obj is a list, containing the design matrix and 
@@ -535,10 +574,18 @@ impulseResponse <- function(object, frequencyName = "freq"){
   objectFull <- rbind( object, objectC )[,nm]
   
   # Inverse FFT of the transfer function coefficients
-  fC <- lapply( objectFull, function(x,...) fft(x,...)/length(x), inverse = TRUE )
+  if (is.data.frame(objectFull)){
+    fC <- lapply( objectFull, function(x,...) fft(x,...)/length(x), inverse = TRUE )
+  } else {
+    fC <- fft(objectFull, inverse = TRUE) / length(objectFull)
+  }
   
   # Rearrange the filter coefficients
-  fC <- as.data.frame( lapply( fC, Re ) )
+  if (is.list(fC)){
+    fC <- as.data.frame( lapply( fC, Re ) )
+  } else {
+    fC <- data.frame(Re(fC))
+  }
   
   # Only want n filter coefficients if n is odd, n-1 if n is even?
   # We want an odd number of coefficients so we know that the middle one is lag 0
