@@ -17,6 +17,7 @@
 #' @param nFFT A \code{numeric} indicating the number of frequency bins to use (i.e. setting 
 #' the zeropadding amount).
 #' @param method A \code{character} string indicating which method to use.  See details.
+#' @param lOrd A vector with length == numColumns of x.  The order of the regression for svdBendat method.
 #' @param adaptiveWeighting A \code{logical} indicating whether the eigencoefficients should 
 #' be multiplied by their adaptive weights before performing the regression.
 #' Note: Only implemented for \code{method = "svd"}.
@@ -40,7 +41,9 @@
 #' $(X^{t}X)^{-1})X^{-1}y$
 #' \code{method = "svd"} uses 1) the FFT, 2) adaptive weights, and 3) a singular value 
 #' decomposition method for estimating the regression coefficients.
-#' Overall - \code{method = "svd"} is in all probability the better method to use.
+#' \code{method = "svdBendat"} decorrelates the inputs prior to estimating the transfer functions, then 
+#' obtains the appropriate transfer function after (see Chapter 7.3 of Bendat & Piersol).
+#' Overall - \code{method = "svdBendat"} is in all probability the better method to use.
 #' 
 #' @return An object of class \code{transfer}, consisting of a complex matrix whose 
 #' columns are the individual transfer function for each input, and several attributes
@@ -51,17 +54,17 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
                , method = c("svd", "sft", "robust", "svdBendat"), lOrd = NULL
                , adaptiveWeighting = TRUE
                , freqRange = NULL, freqOffset = NULL
-               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE
-               , nodes = 1)
+               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 {
   x.nCol <- dim(x)[2]
   y.nCol <- dim(y)[2]
   
-  if (nodes == 1){
-    warning("'nodes' is set to 1.  You may want to run this in parallel to gain some speed.")
-  }
+  # for a future implementation - a brighter tomorrow perhaps... (faster anyway... )
+  # if (nodes == 1){
+  #   warning("'nodes' is set to 1.  You may want to run this in parallel to gain some speed.")
+  # }
   
-  if (is.NULL(lOrd) & method[1] == "svdBendat"){
+  if (is.null(lOrd) & method[1] == "svdBendat"){
     lOrd <- 1:x.nCol
   } else if (method[1] == "svdBendat" & length(lOrd) != x.nCol){
     stop("Right now, length of 'lOrd' must have same length as number of columns of 'x' data.frame.")
@@ -73,7 +76,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     stdPars$x <- data.frame( xmean = sapply( x, mean ), xsd = sapply( x, sd ) )
     stdPars$y <- data.frame( ymean = sapply( y, mean ), ysd = sapply( y, sd ) )
     x <- data.frame( lapply( x, std ) )
-    y <- data.frame( lapply( y, std ) )
+    y <- as.data.frame( lapply( y, std ) )
   }
   
   # number of frequencies bins to use (zero-pad length)
@@ -183,6 +186,7 @@ tfMiso <- function(obj, lOrd){
   L <- diag(as.complex(1), dcol, dcol)
   for (i in 2:nReg){
     L[1:(i-1), i] <- svdRegression(x = X[, 1:(i-1)], y = X[, i])$coef
+    X[, i] <- X[, i] - (X[, 1:(i-1), drop = FALSE] %*% L[1:(i-1), i, drop = FALSE])
   }
   
   Ly <- t(svdRegression(x = X, y = obj$y)$coef)

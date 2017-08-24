@@ -1,7 +1,7 @@
 Package: transfer
 Type: Package
 Title: Frequency Domain Transfer Function Estimation Tools
-Version: 0.5
+Version: 0.7
 Date: 2017-02-12
 Author: David L. Riegert
 Maintainer: David L. Riegert <driegert@gmail.com>

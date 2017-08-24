@@ -5,9 +5,10 @@
 \title{Estimate the frequency-domain transfer function}
 \usage{
 tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
-  k = 7, nFFT = NULL, method = c("svd", "sft", "robust"),
-  adaptiveWeighting = TRUE, freqRange = NULL, freqOffset = NULL,
-  standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
+  k = 7, nFFT = NULL, method = c("svd", "sft", "robust", "svdBendat"),
+  lOrd = NULL, adaptiveWeighting = TRUE, freqRange = NULL,
+  freqOffset = NULL, standardize = TRUE, prewhiten = TRUE,
+  removePeriodic = TRUE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}
@@ -32,6 +33,8 @@ floor(2*nw - 1) and no larger than floor(2*nw).}
 the zeropadding amount).}
 
 \item{method}{A \code{character} string indicating which method to use.  See details.}
+
+\item{lOrd}{A vector with length == numColumns of x.  The order of the regression for svdBendat method.}
 
 \item{adaptiveWeighting}{A \code{logical} indicating whether the eigencoefficients should 
 be multiplied by their adaptive weights before performing the regression.
@@ -71,5 +74,7 @@ are used:
 $(X^{t}X)^{-1})X^{-1}y$
 \code{method = "svd"} uses 1) the FFT, 2) adaptive weights, and 3) a singular value 
 decomposition method for estimating the regression coefficients.
-Overall - \code{method = "svd"} is in all probability the better method to use.
+\code{method = "svdBendat"} decorrelates the inputs prior to estimating the transfer functions, then 
+obtains the appropriate transfer function after (see Chapter 7.3 of Bendat & Piersol).
+Overall - \code{method = "svdBendat"} is in all probability the better method to use.
 }
