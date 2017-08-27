@@ -21,6 +21,10 @@
 #' @param adaptiveWeighting A \code{logical} indicating whether the eigencoefficients should 
 #' be multiplied by their adaptive weights before performing the regression.
 #' Note: Only implemented for \code{method = "svd"}.
+#' @param interactionOrder An \code{integer} indicating what order of interactions of the 
+#' covariates to include in the linear regression model. A value of 0
+#' would include the main effects only and no interactions.
+#' NOTE: there is currently no method to choose particulare interactions - all or none.
 #' @param freqRange NOT CURRENTLY IMPLEMENTED.
 #' @param freqOffset NOT CURRENTLY IMPLEMENTED (don't chage this... ).
 #' @param standardize Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1? 
@@ -53,6 +57,7 @@
 tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k = 7, nFFT = NULL
                , method = c("svd", "sft", "robust", "svdBendat"), lOrd = NULL
                , adaptiveWeighting = TRUE
+               , interactionOrder = 1
                , freqRange = NULL, freqOffset = NULL
                , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 {
@@ -108,6 +113,29 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
                                            , nFFT = nFFT, numSections = numSections
                                            , adaptiveWeighting = adaptiveWeighting)
     
+    ### "calculating" the interaction terms ###
+    ### Need to optimize this... because it's highly inefficient
+    if (interactionOrder > 0){
+      
+      nInteraction <- sum(choose(x.nCol, 2:(interactionOrder + 1)))
+      covNames <- names(x.wtEigenCoef[[1]])
+      for (i in 2:(interactionOrder + 1)){
+        combs <- combn(1:x.nCol, i)
+        for (j in 1:choose(x.nCol, i)){
+          for (l in 1:length(x.wtEigenCoef)){
+            tmp <- matrix(1, ncol = k, nrow = nfreq)
+            for (q in 1:i){
+              tmp <- tmp * x.wtEigenCoef[[l]][[combs[q, j]]]
+            }
+            x.wtEigenCoef[[l]][[paste(covNames[combs[, j]], collapse = "..")]] <- tmp
+          }
+        }
+      }
+    } else {
+      nInteraction <- 0
+    }
+    #############
+    
     # indexing helper function that grabs and stacks all the eigencoefficients at a frequency
     eigenByFreq <- function(obj, rowNum, numEl){
       matrix(unlist(lapply(obj, function(x, idx) x[idx, ], rowNum)), ncol = numEl)
@@ -118,7 +146,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     # stack the eigencoefficients by frequency from each block
     # form into a single list
     for (i in 1:nfreq){
-      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = x.nCol))
+      x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq, rowNum = i, numEl = x.nCol + nInteraction))
                             , y = do.call(rbind, lapply(y.wtEigenCoef, eigenByFreq, rowNum = i, numEl = y.nCol)))
     }
     
