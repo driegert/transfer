@@ -6,9 +6,9 @@
 \usage{
 tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
   k = 7, nFFT = NULL, method = c("svd", "sft", "robust", "svdBendat"),
-  lOrd = NULL, adaptiveWeighting = TRUE, freqRange = NULL,
-  freqOffset = NULL, standardize = TRUE, prewhiten = TRUE,
-  removePeriodic = TRUE)
+  lOrd = NULL, adaptiveWeighting = TRUE, interactionOrder = 0,
+  freqRange = NULL, maxFreqOffset = NULL, standardize = TRUE,
+  prewhiten = TRUE, removePeriodic = TRUE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}
@@ -40,15 +40,20 @@ the zeropadding amount).}
 be multiplied by their adaptive weights before performing the regression.
 Note: Only implemented for \code{method = "svd"}.}
 
-\item{freqRange}{NOT CURRENTLY IMPLEMENTED.}
+\item{interactionOrder}{An \code{integer} indicating what order of interactions of the 
+covariates to include in the linear regression model. A value of 0
+would include the main effects only and no interactions.
+NOTE: there is currently no method to choose particulare interactions - all or none.}
 
-\item{freqOffset}{NOT CURRENTLY IMPLEMENTED (don't chage this... ).}
+\item{freqRange}{NOT CURRENTLY IMPLEMENTED.}
 
 \item{standardize}{Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1?}
 
 \item{prewhiten}{NOT CURRENTLY IMPLEMENTED.}
 
 \item{removePeriodic}{NOT CURRENTLY IMPLEMENTED.}
+
+\item{freqOffset}{NOT CURRENTLY IMPLEMENTED (don't chage this... ).}
 }
 \value{
 An object of class \code{transfer}, consisting of a complex matrix whose 

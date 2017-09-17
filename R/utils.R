@@ -97,6 +97,7 @@ svdRegression <- function(x, y){
   sng <- svd(x)
   
   beta <- sng$v %*% ((Conj(t(sng$u)) %*% y) / sng$d)
+  rownames(beta) <- colnames(x)
   
   stdErr <- apply(t(apply(sng$v, 1, "/", sng$d)), 1, sum) * sd.complex(y)
   
@@ -276,4 +277,27 @@ calculateSpec <- function(obj, forward = TRUE, idx = NULL){
 ## Takes the conjugate transpose since this gets used a lot
 hConj <- function(x){
   t(Conj(x))
+}
+
+#' Trim an odd-length vector
+#' 
+#' This function trims a vector with an odd length, leaving \code{n} elements to
+#' one or either side of the center element.
+#' 
+#' @param x The vector to trim
+#' @param n The number of elements to one or either side of the center element to keep
+#' @param LR A vector indicating which side to keep: To keep \code{n} elements to the left, 
+#' set \code{LR = 1}; to keep \code{n} elements to the right, set \code{LR = 2}; for
+#' \code{n} elements to the left and right, set \code{LR = 1:2}.
+#' 
+#' @return A trimmed \code{vector} according to \code{n} and \code{side}.
+#' 
+#' @export
+trim <- function(x, n = 5, LR = 1:2){
+  if( abs( length(LR)-1 ) > 1 | !all( LR %in% 1:2 ) ) stop( "Invalid LR argument" )
+  l <- length(x)
+  if( l%%2 != 1 ) stop( "Length of x is not odd" )
+  m <- ceiling( l/2 )
+  i <- list( (m-n):m, m:(m+n) )
+  x[ unique( unlist(i[LR]) ) ]
 }
