@@ -301,3 +301,36 @@ trim <- function(x, n = 5, LR = 1:2){
   i <- list( (m-n):m, m:(m+n) )
   x[ unique( unlist(i[LR]) ) ]
 }
+
+## for dealing with Conjugate frequencies
+negFreqIdx <- function(idx){
+  abs(idx[idx <= 0]) + 2
+}
+
+#' Filters a time-series
+#' 
+#' Allows complex-valued filtering
+#' 
+#' @param x A vector (possibly complex, time-series) to be filtered.
+#' @param filter A vector (possibly complex) of filter coefficients to be applied.
+#' 
+#' @details The causal coefficients should be in the right-half of the vector.  This function 
+#' assumes that the filter is odd-length.
+#' 
+#' @export
+zFilter <- function(x, filter){
+  N <- length(x)
+  nFilt <- length(filter)
+  if (nFilt > N){
+    stop("Filter is longer than the time series.")
+  }
+  if (nFilt %% 2 == 0){
+    stop("Filter length should be odd ... or modify this function to work with even length.")
+  }
+  M <- 2^(floor(log2(N))+3)
+  
+  result <- fft( fft(c(x, rep(0, M-N))) * fft(c(filter, rep(0, M-nFilt))), inverse = TRUE )[1:N] / M
+  result[1:(nFilt-1)] <- NA
+  
+  result
+}

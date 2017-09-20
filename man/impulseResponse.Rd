@@ -4,10 +4,15 @@
 \alias{impulseResponse}
 \title{Obtain the impusle response from a transfer object}
 \usage{
-impulseResponse(object, frequencyName = "freq")
+impulseResponse(object, frequencyName = "freq", realPart = TRUE)
 }
 \arguments{
 \item{object}{An object of class \code{transfer} obtained from \link{tf.svd} or \link{tf}.}
+
+\item{frequencyName}{A \code{character} string with the name of the frequency column.}
+
+\item{realPart}{A \code{logical} indicating whether the real part of the impules should be 
+taken (default TRUE) or whether the complex impulse responses should be returned (FALSE).}
 }
 \value{
 A vector containing the impulse response of the provided transfer function 

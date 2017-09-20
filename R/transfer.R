@@ -58,7 +58,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
                , method = c("svd", "sft", "robust", "svdBendat"), lOrd = NULL
                , adaptiveWeighting = TRUE
                , interactionOrder = 0
-               , freqRange = NULL, maxFreqOffset = NULL
+               , freqRange = NULL, maxFreqOffset = NULL, cohSigCutoff = NULL
                , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
 {
   x.nCol <- dim(x)[2]
@@ -89,14 +89,6 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     nFFT <- 2^(floor(log2(blockSize)) + 3)
   }
   
-  if (!is.null(freqRange) & !is.null(maxFreqOffset)){
-    freqOffsets <- offsetFreq(cbind(y, x), responseName = "Mort.CP.b.A0", blockSize = blockSize, overlap = overlap
-                          , deltat = deltat, nw = nw, k = k, nFFT = nFFT, freqRange = freqRange
-                          , maxFreqOffset = maxFreqOffset, calcType = 1, forward = 1)
-  } else {
-    freqOffsets <- NULL
-  }
-  
   # determine the positive values of the frequencies.
   freq <- seq(0, 1/(2*deltat), by = 1/(nFFT*deltat))
   nfreq <- length(freq)
@@ -104,6 +96,19 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   # block the data (x2, y2 are a list of data.frames)
   x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
   y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
+  
+  # determine the coherence cutoff based on a significance level ... somehow
+  cohCutoff <- 0.2 # a function of cohSigCutoff probably... 
+  
+  # determine which central frequencies have offset frequencies to use.
+  if (!is.null(freqRange) & !is.null(maxFreqOffset)){
+    freqOffsets <- offsetFreq(cbind(y, x), responseName = "Mort.CP.b.A0", blockSize = blockSize, overlap = overlap
+                              , deltat = deltat, nw = nw, k = k, nFFT = nFFT, 
+                              , cutofff = cohCutoff, freqRange = freqRange
+                              , maxFreqOffset = maxFreqOffset, calcType = 1, forward = 1)
+  } else {
+    freqOffsets <- NULL
+  }
   
   if (method[1] != "sft"){
     numSections <- attr(x2, "numSections")
@@ -214,6 +219,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   attr(H, "nw") <- attr(x2, "nw")
   attr(H, "k") <- attr(x2, "k")
   attr(H, "standardize") <- standardize
+  attr(H, "nFFT") <- nFFT
   if( standardize ) attr(H, "stdPars") <- stdPars
   attr(H, "adaptiveWeighting") <- adaptiveWeighting
   
@@ -223,8 +229,8 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
 # helper function that performs the regressions based on residuals, then returns the proper 
 # transfer functions.  This is mostly based on chapter 7.3 of Bendat and Piersol - Random Data
 # Assumes the same time-domain block structure as what was passed to tf() above.
-# Lord - the order that the regressions should take place before slamming everything back together 
-# ... "SLAMMING" a la equation (7.100) in Bendat and Piersol.
+# Lord - the order that the regressions should take place before slamming everything back 
+# together ... "SLAMMING" a la equation (7.100) in Bendat and Piersol.
 tfMiso <- function(obj, lOrd){
   nReg <- length(lOrd) # number of intermediate regressions
   drow <- dim(obj$x)[1]
@@ -445,6 +451,9 @@ out
 #' Inverse Fourier transforms the transfer function to obtain the impulse response
 #' 
 #' @param object An object of class \code{transfer} obtained from \link{tf.svd} or \link{tf}.
+#' @param frequencyName A \code{character} string with the name of the frequency column.
+#' @param realPart A \code{logical} indicating whether the real part of the impules should be 
+#' taken (default TRUE) or whether the complex impulse responses should be returned (FALSE).
 #' 
 #' @details Inverts the transfer function object returning causal and non-causal filter 
 #' coefficients.  The non-causal filter coefficients are the left "half" of the vector with 
@@ -455,7 +464,7 @@ out
 #' from \link{tf}.
 #' 
 #' @export
-impulseResponse <- function(object, frequencyName = "freq"){
+impulseResponse <- function(object, frequencyName = "freq", realPart = TRUE){
   tfNames <- names( object ) # don't actually need this I don't think
   nm <- tfNames[ tfNames != frequencyName ]
   
@@ -473,11 +482,16 @@ impulseResponse <- function(object, frequencyName = "freq"){
   }
   
   # Rearrange the filter coefficients
-  if (is.list(fC)){
-    fC <- as.data.frame( lapply( fC, Re ) )
+  if (realPart){
+    if (is.list(fC)){
+      fC <- as.data.frame( lapply( fC, Re ) )
+    } else {
+      fC <- data.frame(Re(fC))
+    }
   } else {
-    fC <- data.frame(Re(fC))
+    fC <- as.data.frame(fC)
   }
+  
   
   # Only want n filter coefficients if n is odd, n-1 if n is even?
   # We want an odd number of coefficients so we know that the middle one is lag 0
@@ -521,8 +535,9 @@ impulseResponse <- function(object, frequencyName = "freq"){
 #' 
 #' @export
 offsetFreq <- function(dat, responseName, blockSize = dim(dat)[1], overlap = 0
-                       , deltat = 1, nw = 4, k = 7, nFFT = NULL, freqRange = NULL
-                       , maxFreqOffset = 0, calcType = 1, forward = 1){
+                       , deltat = 1, nw = 4, k = 7, nFFT = NULL, cutoff = 0.2
+                       , freqRange = NULL, maxFreqOffset = 0
+                       , calcType = 1, forward = 1){
   if (is.null(freqRange) || maxFreqOffset == 0){
     stop("freqRange or maxFreqOffset are not set - no point in running this.")
   }
@@ -589,21 +604,25 @@ maxOffCoh <- function(coh, cutoff, nw, N, nFFT, name = "d2", appendTo = NULL){
       if (length(idxOff[[i]]) == 0) {
         appendTo[[ paste0("fBin", freqRangeIdx[i]) ]] <- list()
         appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = numeric(0))
+                                                                      , offFreq = numeric(0)
+                                                                      , offCoh = numeric(0))
       } else {
         appendTo[[ paste0("fBin", freqRangeIdx[i]) ]] <- list()
         appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = coh$offset[ zeroOff + idxOff[[i]] ])
+                                                                      , offFreq = coh$offset[ zeroOff + idxOff[[i]] ]
+                                                                      , offCoh = coh$coh[zeroOff+idxOff[[i]], i ])
       }
     }
   } else {
     for (i in 1:length(idxOff)){
       if (length(idxOff[[i]]) == 0) {
         appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = numeric(0))
+                                                                      , offFreq = numeric(0)
+                                                                      , offCoh = numeric(0))
       } else {
         appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = coh$offset[ zeroOff + idxOff[[i]] ])
+                                                                      , offFreq = coh$offset[ zeroOff + idxOff[[i]] ]
+                                                                      , offCoh = coh$coh[zeroOff+idxOff[[i]], i ])
       }
     }
   }
