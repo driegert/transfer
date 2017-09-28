@@ -7,8 +7,9 @@
 tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
   k = 7, nFFT = NULL, method = c("svd", "sft", "robust", "svdBendat"),
   lOrd = NULL, adaptiveWeighting = TRUE, interactionOrder = 0,
-  freqRange = NULL, maxFreqOffset = NULL, standardize = TRUE,
-  prewhiten = TRUE, removePeriodic = TRUE)
+  freqRange = NULL, maxFreqOffset = NULL, cohSigCutoff = 0.9,
+  standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE,
+  asMatrix = TRUE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}
@@ -52,6 +53,9 @@ NOTE: there is currently no method to choose particulare interactions - all or n
 \item{prewhiten}{NOT CURRENTLY IMPLEMENTED.}
 
 \item{removePeriodic}{NOT CURRENTLY IMPLEMENTED.}
+
+\item{asMatrix}{A \code{logical} which is only used during offset coherences - 
+currently used in testing.}
 
 \item{freqOffset}{NOT CURRENTLY IMPLEMENTED (don't chage this... ).}
 }

@@ -25,11 +25,21 @@
 #' covariates to include in the linear regression model. A value of 0
 #' would include the main effects only and no interactions.
 #' NOTE: there is currently no method to choose particulare interactions - all or none.
-#' @param freqRange NOT CURRENTLY IMPLEMENTED.
-#' @param freqOffset NOT CURRENTLY IMPLEMENTED (don't chage this... ).
-#' @param standardize Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1? 
+#' @param freqRange A vector of length 2 containing the endpoints of the frequency range 
+#' over which to calculate the offset coherences (these are central frequencies of the 
+#' response).
+#' @param maxFreqOffset A \code{numeric} value in Hz indicating the largest offset to be 
+#' calculated in both the positive and negative direction.
+#' @param useZeroOffset A \code{logical} value indicating whether to always in include the 
+#' center frequency when taking offset frequencies into account.
+#' @param nOffsetFreq An \code{integer} indicating how many offset frequencies should
+#' be used (a maximum amount).
+#' @param standardize Should the inputs and outputs be standardized to
+#' have mean = 0 and standard deviation = 1? 
 #' @param prewhiten NOT CURRENTLY IMPLEMENTED.
 #' @param removePeriodic NOT CURRENTLY IMPLEMENTED.
+#' @param asMatrix A \code{logical} which is only used during offset coherences - 
+#' currently used in testing.
 #' 
 #' @details Takes the times series inputs and response, divides these series into 
 #' (optionally) overlapping blocks, tapers each block with Discrete 
@@ -58,8 +68,10 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
                , method = c("svd", "sft", "robust", "svdBendat"), lOrd = NULL
                , adaptiveWeighting = TRUE
                , interactionOrder = 0
-               , freqRange = NULL, maxFreqOffset = NULL, cohSigCutoff = NULL
-               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE)
+               , freqRange = NULL, maxFreqOffset = NULL, cohSigCutoff = 0.9
+               , useZeroOffset = TRUE, nOffsetFreq = -1
+               , standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE
+               , asMatrix = TRUE)
 {
   x.nCol <- dim(x)[2]
   y.nCol <- dim(y)[2]
@@ -97,15 +109,18 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   x2 <- sectionData(x, blockSize = blockSize, overlap = overlap)
   y2 <- sectionData(y, blockSize = blockSize, overlap = overlap)
   
-  # determine the coherence cutoff based on a significance level ... somehow
-  cohCutoff <- 0.2 # a function of cohSigCutoff probably... 
-  
   # determine which central frequencies have offset frequencies to use.
   if (!is.null(freqRange) & !is.null(maxFreqOffset)){
-    freqOffsets <- offsetFreq(cbind(y, x), responseName = "Mort.CP.b.A0", blockSize = blockSize, overlap = overlap
-                              , deltat = deltat, nw = nw, k = k, nFFT = nFFT, 
-                              , cutofff = cohCutoff, freqRange = freqRange
-                              , maxFreqOffset = maxFreqOffset, calcType = 1, forward = 1)
+    # determine the coherence cutoff based on a significance level ...
+    # Haykin and Thomson paper - cognitive radio p 866 - typo in Eq (50)
+    # Eq (50) should have the 1- just like Eq (49).
+    mscCutoff <- 1 - (1 - cohSigCutoff)^(1/(attr(x2, "numSections") * (k-1)))
+    
+    freqOffsets <- offsetFreq(cbind(y, x), responseName = "Mort.CP.b.A0"
+                              , blockSize = blockSize, overlap = overlap
+                              , deltat = deltat, nw = nw, k = k, nFFT = nFFT
+                              , mscCutoff = mscCutoff, freqRange = freqRange
+                              , maxFreqOffset = maxFreqOffset, calcType = 4, forward = 1)
   } else {
     freqOffsets <- NULL
   }
@@ -176,10 +191,12 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     } else if (method[1] == "svd"){
       if (!is.null(freqOffsets)){
         H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
+        if (!asMatrix){ return(H.tmp) } # only used in testing at this point.
         H.mat <- offsetTfMatrix(H.tmp)
       } else {
         H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
-        H.mat <- do.call(rbind, lapply(H.tmp, "[[", "coef"))
+        if (!asMatrix){ return(H.tmp) }
+        H.mat <- as.matrix(do.call(rbind, lapply(H.tmp, "[[", "coef")))
       }
     } else if (method[1] == "svdBendat"){
       H.tmp <- lapply(x.design, tfMiso, lOrd = lOrd)
@@ -504,132 +521,6 @@ impulseResponse <- function(object, frequencyName = "freq", realPart = TRUE){
 }
 
 
-#' Determine Offset Frequencies to include in model
-#' 
-#' Calculates the coherence between multiple inputs and an output and determines 
-#' significant offset frequencies
-#' 
-#' @param dat a \code{data.frame} whose columns contain the time-domain response
-#' and predictors
-#' @param responseName a \code{character} string giving the name of which column is the 
-#' response.
-#' @param blockSize The length of a single block to use (if blocking)
-#' @param overlap A \code{numeric} value in the range [0, 1) indicating the proporation of 
-#' overlap between neighbouring blocks.
-#' @param deltat The sampling rate in seconds.
-#' @param nw time-bandwidth parameter for multitaper
-#' @param k number of tapers to use (k < 2*nw)
-#' @param nFFT the number of frequency bins to use (nFFT > 2*ndata)
-#' @param freqRange A vector with 2 elements containing the start and end frequencies (in Hz) 
-#' over which to calculate the coherence.
-#' @param maxFreqOffset Every pair of frequencies between f1 (series 1) 
-#' and f1 +/- maxFreqOffset (series 2) will be calculated (f1 + maxFreqOffset < nyquist)
-#' @param calcType An \code{integer} value indicating how averaging over blocks should 
-#' be performed:
-#' 1 - calculate the MSC on each block, then average;
-#' 2 - calculate the cross and auto spectra on each block, average each quantity 
-#' across blocks, then calculate the coherency;
-#' 3 - calculate the coherency on each block, then average
-#' @param forward An \code{integer} indicating whether the forward (1) or reverse (0) coherence
-#' should be calculated.
-#' 
-#' @export
-offsetFreq <- function(dat, responseName, blockSize = dim(dat)[1], overlap = 0
-                       , deltat = 1, nw = 4, k = 7, nFFT = NULL, cutoff = 0.2
-                       , freqRange = NULL, maxFreqOffset = 0
-                       , calcType = 1, forward = 1){
-  if (is.null(freqRange) || maxFreqOffset == 0){
-    stop("freqRange or maxFreqOffset are not set - no point in running this.")
-  }
-  
-  pNames <- names(dat)
-  if (is.na(match(responseName, pNames))){
-    stop("'responseName' does not correspond to a column name of 'dat'.")
-  }
-  
-  pNames <- pNames[-match(responseName, pNames)]
-  
-  if (is.null(nFFT)){
-    nFFT <- 2^(floor(log2(blockSize)) + 3)
-  }
-  
-  for (i in 1:length(pNames)){
-    offCoh <- transfer2::coherence(dat[, responseName], dat[, pNames[i] ]
-                                   , blockSize = blockSize
-                                   , overlap = overlap, dt = deltat
-                                   , nw = nw, k = k, nFFT = nFFT
-                                   , freqRange = freqRange
-                                   , maxFreqOffset = maxFreqOffset
-                                   , name1 = responseName, name2 = pNames[i])
-    if (i == 1){
-      offsets <- maxOffCoh(offCoh, 0.2, nw = nw, N = blockSize, nFFT = nFFT
-                           , name = offCoh$info$d2)
-    } else {
-      offsets <- maxOffCoh(offCoh, 0.2, nw = nw, N = blockSize, nFFT = nFFT
-                           , name = offCoh$info$d2, appendTo = offsets)
-    }
-  }
-  
-  info <- list(response = responseName, predictors = pNames, ndata = dim(dat)[1]
-               , blockSize = blockSize, overlap = overlap, deltat = deltat
-               , nw = nw, k = k, nFFT = nFFT, freqRange = freqRange
-               , freqRangeIdx = offCoh$info$freqRangeIdx
-               , maxFreqOffset = maxFreqOffset
-               , maxFreqOffsetIdx = offCoh$info$maxFreqOffsetIdx
-               , calcType = calcType, calcTypeDesc = offCoh$info$calcTypeDesc
-               , forward = forward)
-  list(offsets = offsets, info = info)
-}
-
-# takes an object as returned from transfer2::coherence()
-### NOTE: divide by 4 here in the main lobe width - should that be there?
-maxOffCoh <- function(coh, cutoff, nw, N, nFFT, name = "d2", appendTo = NULL){
-  lobeWidthIdx <- ceiling((nw / N) * (nFFT) / 4) # how many bins make up W - don't use anything in here close to 0 offset.
-  zeroOff <- ceiling(length(coh$offset)/2)
-  coh.df <- as.data.frame(coh$coh)
-  idxOff <- lapply(coh.df
-                   , function(x, c){
-                     n <- length(x)
-                     tmp <- (which(x[2:(n-1)] > x[1:(n-2)] & x[2:(n-1)] > x[3:n] & x[2:(n-1)] > cutoff) + 1) - zeroOff
-                     tmp[which(!(tmp >= -lobeWidthIdx & tmp <= lobeWidthIdx))]
-                   }
-                   , c = cutoff)
-  # names(idxOff) <- rep("offIdx", length(idxOff))
-  
-  freqRangeIdx <- coh$info$freqRangeIdx[1]:coh$info$freqRangeIdx[2]
-  if (is.null(appendTo)){
-    # create the list and sublists if need be ... 
-    appendTo <- list()
-    for (i in 1:length(idxOff)){
-      if (length(idxOff[[i]]) == 0) {
-        appendTo[[ paste0("fBin", freqRangeIdx[i]) ]] <- list()
-        appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = numeric(0)
-                                                                      , offCoh = numeric(0))
-      } else {
-        appendTo[[ paste0("fBin", freqRangeIdx[i]) ]] <- list()
-        appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = coh$offset[ zeroOff + idxOff[[i]] ]
-                                                                      , offCoh = coh$coh[zeroOff+idxOff[[i]], i ])
-      }
-    }
-  } else {
-    for (i in 1:length(idxOff)){
-      if (length(idxOff[[i]]) == 0) {
-        appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = numeric(0)
-                                                                      , offCoh = numeric(0))
-      } else {
-        appendTo[[ paste0("fBin", freqRangeIdx[i]) ]][[name]] <- list(offIdx = idxOff[[i]]
-                                                                      , offFreq = coh$offset[ zeroOff + idxOff[[i]] ]
-                                                                      , offCoh = coh$coh[zeroOff+idxOff[[i]], i ])
-      }
-    }
-  }
-  appendTo
-}
-
-
 #' Creates a design matrix at a particular frequency
 #' 
 #' Design matrix designing! Using offsets if applicable.
@@ -639,10 +530,14 @@ maxOffCoh <- function(coh, cutoff, nw, N, nFFT, name = "d2", appendTo = NULL){
 #' @param offests - the result of offsetFreq() (I think.. )
 #' @param rowNum - the current frequency that we're building the design matrix for
 #' @param numEl - the number of columns in the design matrix without offsets
-eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl){
-  tmp <- matrix(unlist(lapply(obj, function(x, idx) x[idx, ], rowNum)), ncol = numEl)
-  colnames(tmp) <- names(obj)
-  shiftIdx <- rep(0, numEl)
+eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE
+                        , nOffsetFreq = -1) {
+  # if you *must* use the zero offsets (most applications probably?)
+  if (useZeroOffset){
+    tmp <- matrix(unlist(lapply(obj, function(x, idx) x[idx, ], rowNum)), ncol = numEl)
+    colnames(tmp) <- names(obj)
+    shiftIdx <- rep(0, numEl)
+  }
   
   fBinName <- paste0("fBin", rowNum)
   

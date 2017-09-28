@@ -98,6 +98,7 @@ svdRegression <- function(x, y){
   
   beta <- sng$v %*% ((Conj(t(sng$u)) %*% y) / sng$d)
   rownames(beta) <- colnames(x)
+  colnames(beta) <- NULL
   
   stdErr <- apply(t(apply(sng$v, 1, "/", sng$d)), 1, sum) * sd.complex(y)
   

@@ -5,8 +5,8 @@
 \title{Determine Offset Frequencies to include in model}
 \usage{
 offsetFreq(dat, responseName, blockSize = dim(dat)[1], overlap = 0,
-  deltat = 1, nw = 4, k = 7, nFFT = NULL, freqRange = NULL,
-  maxFreqOffset = 0, calcType = 1, forward = 1)
+  deltat = 1, nw = 4, k = 7, nFFT = NULL, mscCutoff = 0.2,
+  freqRange = NULL, maxFreqOffset = 0, calcType = 1, forward = 1)
 }
 \arguments{
 \item{dat}{a \code{data.frame} whose columns contain the time-domain response
@@ -39,7 +39,8 @@ be performed:
 1 - calculate the MSC on each block, then average;
 2 - calculate the cross and auto spectra on each block, average each quantity 
 across blocks, then calculate the coherency;
-3 - calculate the coherency on each block, then average}
+3 - calculate the coherency on each block, then average
+4 - minimum MSC across blocks}
 
 \item{forward}{An \code{integer} indicating whether the forward (1) or reverse (0) coherence
 should be calculated.}
