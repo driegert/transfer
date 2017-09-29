@@ -76,6 +76,12 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
   x.nCol <- dim(x)[2]
   y.nCol <- dim(y)[2]
   
+  if (!useZeroOffset & (is.null(freqRange) | is.null(maxFreqOffset))){
+    warning("No freqRange not set and useZeroOffset == FALSE.  Estimating transfer functions
+            with only the zero offsets (i.e., setting useZeroOffset to TRUE).")
+    useZeroOffset <- TRUE
+  }
+  
   # for a future implementation - a brighter tomorrow perhaps... (faster anyway... )
   # if (nodes == 1){
   #   warning("'nodes' is set to 1.  You may want to run this in parallel to gain some speed.")
@@ -120,7 +126,9 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
                               , blockSize = blockSize, overlap = overlap
                               , deltat = deltat, nw = nw, k = k, nFFT = nFFT
                               , mscCutoff = mscCutoff, freqRange = freqRange
-                              , maxFreqOffset = maxFreqOffset, calcType = 4, forward = 1)
+                              , maxFreqOffset = maxFreqOffset
+                              , useZeroOffset = useZeroOffset
+                              , nOffsetFreq = nOffsetFreq, calcType = 4, forward = 1)
   } else {
     freqOffsets <- NULL
   }
@@ -177,7 +185,9 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
       x.design[[i]] <- list(x = do.call(rbind, lapply(x.wtEigenCoef, eigenByFreq
                                                       , offsets = freqOffsets
                                                       , rowNum = i
-                                                      , numEl = x.nCol + nInteraction))
+                                                      , numEl = x.nCol + nInteraction
+                                                      , useZeroOffset = useZeroOffset
+                                                      , nOffsetFreq = nOffsetFreq))
                             , y = do.call(rbind, lapply(y.wtEigenCoef, eigenByFreq
                                                         , rowNum = i, numEl = y.nCol)))
     }
@@ -192,6 +202,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
       if (!is.null(freqOffsets)){
         H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
         if (!asMatrix){ return(H.tmp) } # only used in testing at this point.
+        # browser()
         H.mat <- offsetTfMatrix(H.tmp)
       } else {
         H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
@@ -532,14 +543,15 @@ impulseResponse <- function(object, frequencyName = "freq", realPart = TRUE){
 #' @param numEl - the number of columns in the design matrix without offsets
 eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE
                         , nOffsetFreq = -1) {
+  fBinName <- paste0("fBin", rowNum)
   # if you *must* use the zero offsets (most applications probably?)
-  if (useZeroOffset){
+  if (useZeroOffset || is.null(offsets$offsets[[ fBinName ]])){
     tmp <- matrix(unlist(lapply(obj, function(x, idx) x[idx, ], rowNum)), ncol = numEl)
     colnames(tmp) <- names(obj)
     shiftIdx <- rep(0, numEl)
+  } else {
+    shiftIdx <- c()
   }
-  
-  fBinName <- paste0("fBin", rowNum)
   
   # this second piece of the if might need to be reworked...
   if (is.null(offsets) || is.null(offsets$offsets[[ fBinName ]])){
@@ -557,11 +569,12 @@ eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE
       tmp2[[i]] <- NA
       next
     }
-    
+  
     offIdx <- offsets$offsets[[ fBinName ]][[ pNames[i] ]]$offIdx
     shiftIdx <- c(shiftIdx, offIdx[offIdx > 0], offIdx[offIdx < 0])
     freqIdx <- rowNum + offIdx
     freqPosIdx <- freqIdx[freqIdx > 0]
+    
     freqNegIdx <- abs(freqIdx[freqIdx <= 0]) + 2
     numOff <- length(freqIdx)
     
@@ -571,9 +584,13 @@ eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE
     if (length(offIdx[offIdx < 0]) > 0){
       offNames <- paste0(pNames[i], "..m", abs(offIdx[offIdx < 0]))
     }
+    if (length(offIdx[offIdx == 0]) > 0){
+      offNames <- c(offNames, pNames[i])
+    }
     if (length(offIdx[offIdx > 0]) > 0){
       offNames <- c(offNames, paste0(pNames[i], "..p", abs(offIdx[offIdx > 0])))
     }
+    
     
     if (length(freqNegIdx) > 0){
       tmp2[[i]] <- matrix(Conj(t(obj[[ pNames[i] ]][ freqNegIdx, ])), ncol = length(freqNegIdx))
@@ -590,25 +607,16 @@ eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE
     colnames(tmp2[[i]]) <- offNames
   }
   
-  if (all(!hasOffsets)){
-    return(tmp)
+  if (useZeroOffset){
+    if (all(!hasOffsets)){
+      return(tmp)
+    } else {
+      return(cbind(tmp, do.call(cbind, tmp2[hasOffsets])))
+    }
   } else {
-    return(cbind(tmp, do.call(cbind, tmp2[hasOffsets])))
-  }
-}
-
-# creates a large, but sparse, matrix containing the transfer functions with offsets.
-# obj - is H.tmp from tf()
-offsetTfMatrix <- function(obj){
-  names <- unique(unlist(lapply(obj, function(x) colnames(x$coef))))
-  
-  H <- matrix(0, nrow = length(obj), ncol = length(names))
-  colnames(H) <- names
-  for (i in 1:length(obj)){
-    H[i, colnames(obj[[i]]$coef)] <- obj[[i]]$coef[1, ]
+    return(do.call(cbind, tmp2))
   }
   
-  H
 }
 
 # obj - probably the H.tmp list of things ?  probably ... 

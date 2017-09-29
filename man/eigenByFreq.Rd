@@ -4,7 +4,8 @@
 \alias{eigenByFreq}
 \title{Creates a design matrix at a particular frequency}
 \usage{
-eigenByFreq(obj, offsets = NULL, rowNum, numEl)
+eigenByFreq(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE,
+  nOffsetFreq = -1)
 }
 \arguments{
 \item{obj}{- a list of lists of matrices - each sublist is a time block.  Within each time 

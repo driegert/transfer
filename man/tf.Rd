@@ -8,8 +8,8 @@ tf(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4,
   k = 7, nFFT = NULL, method = c("svd", "sft", "robust", "svdBendat"),
   lOrd = NULL, adaptiveWeighting = TRUE, interactionOrder = 0,
   freqRange = NULL, maxFreqOffset = NULL, cohSigCutoff = 0.9,
-  standardize = TRUE, prewhiten = TRUE, removePeriodic = TRUE,
-  asMatrix = TRUE)
+  useZeroOffset = TRUE, nOffsetFreq = -1, standardize = TRUE,
+  prewhiten = TRUE, removePeriodic = TRUE, asMatrix = TRUE)
 }
 \arguments{
 \item{x}{A \code{data.frame} whose columns are the time domain input series.}
@@ -46,9 +46,21 @@ covariates to include in the linear regression model. A value of 0
 would include the main effects only and no interactions.
 NOTE: there is currently no method to choose particulare interactions - all or none.}
 
-\item{freqRange}{NOT CURRENTLY IMPLEMENTED.}
+\item{freqRange}{A vector of length 2 containing the endpoints of the frequency range 
+over which to calculate the offset coherences (these are central frequencies of the 
+response).}
 
-\item{standardize}{Should the inputs and outputs be standardized to have mean = 0 and standard deviation = 1?}
+\item{maxFreqOffset}{A \code{numeric} value in Hz indicating the largest offset to be 
+calculated in both the positive and negative direction.}
+
+\item{useZeroOffset}{A \code{logical} value indicating whether to always in include the 
+center frequency when taking offset frequencies into account.}
+
+\item{nOffsetFreq}{An \code{integer} indicating how many offset frequencies should
+be used (a maximum amount).}
+
+\item{standardize}{Should the inputs and outputs be standardized to
+have mean = 0 and standard deviation = 1?}
 
 \item{prewhiten}{NOT CURRENTLY IMPLEMENTED.}
 
@@ -56,8 +68,6 @@ NOTE: there is currently no method to choose particulare interactions - all or n
 
 \item{asMatrix}{A \code{logical} which is only used during offset coherences - 
 currently used in testing.}
-
-\item{freqOffset}{NOT CURRENTLY IMPLEMENTED (don't chage this... ).}
 }
 \value{
 An object of class \code{transfer}, consisting of a complex matrix whose 

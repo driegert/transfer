@@ -26,16 +26,15 @@ specOffRecon <- function(newData, H, nw, k, nFFT, deltat){
   res <- rep(0, nFFT/2+1)
   for (i in 1:length(H)){
     cnames <- colnames(H[[i]]$coef)
-    
     for (j in 1:length(cnames)){
       offNames <- unlist( strsplit( cnames[j], split = "..", fixed = TRUE ))
-      if (length(offNames == 1)){
-        res[i] <- res[i] + (abs(H[[i]]$coef[, offNames[1] ])^2)*spec[[ offNames[1] ]][i]
+      if (length(offNames) == 1){
+        res[i] <- res[i] + (abs(H[[i]]$coef[, offNames[1] ])^2) * spec[[ offNames[1] ]][i]
       } else {
-        if (offNames[1] == "m"){ offSign <- -1 } else { offSign <- 1 }
-        offIdx <- offSign * as.numeric(substr(offNames[2], 2, nchar(offNames[2])))
-        if (offidx <= 0){ offIdx <- abs(offIdx) + 2 }
-        res[i] <- res[i] + (abs(H[[i]]$coef[, offNames[1] ])^2) * spec[[ offNames[1] ]][offIdx]
+        if (substr(offNames[2], 1, 1) == "m"){ offSign <- -1 } else { offSign <- 1 }
+        offIdx <- i + offSign * as.numeric(substr(offNames[2], 2, nchar(offNames[2])))
+        if (offIdx <= 0){ offIdx <- abs(offIdx) + 2 }
+        res[i] <- res[i] + (abs(H[[i]]$coef[, cnames[j] ])^2) * spec[[ offNames[1] ]][offIdx]
       }
     }
   }

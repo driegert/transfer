@@ -60,10 +60,12 @@ offsetFreq <- function(dat, responseName, blockSize = dim(dat)[1], overlap = 0
                                    , name1 = responseName, name2 = pNames[i])
     if (i == 1){
       offsets <- maxOffCoh(offCoh, cutoff = mscCutoff, nw = nw, N = blockSize, nFFT = nFFT
-                           , name = offCoh$info$d2)
+                           , name = offCoh$info$d2, useZeroOffset = useZeroOffset
+                           , nOffsetFreq = nOffsetFreq)
     } else {
       offsets <- maxOffCoh(offCoh, cutoff = mscCutoff, nw = nw, N = blockSize, nFFT = nFFT
-                           , name = offCoh$info$d2, appendTo = offsets)
+                           , name = offCoh$info$d2, useZeroOffset = useZeroOffset
+                           , nOffsetFreq = nOffsetFreq, appendTo = offsets)
     }
   }
   
@@ -168,4 +170,19 @@ maxOffCoh <- function(coh, cutoff, nw, N, nFFT, name = "d2"
     }
   }
   appendTo
+}
+
+
+# creates a large, but sparse, matrix containing the transfer functions with offsets.
+# obj - is H.tmp from tf()
+offsetTfMatrix <- function(obj){
+  names <- unique(unlist(lapply(obj, function(x) colnames(x$coef))))
+  
+  H <- matrix(0, nrow = length(obj), ncol = length(names))
+  colnames(H) <- names
+  for (i in 1:length(obj)){
+    H[i, colnames(obj[[i]]$coef)] <- obj[[i]]$coef[1, ]
+  }
+  
+  H
 }
