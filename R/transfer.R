@@ -201,7 +201,7 @@ tf <- function(x, y, blockSize = dim(x)[1], overlap = 0, deltat = 1, nw = 4, k =
     } else if (method[1] == "svd"){
       if (!is.null(freqOffsets)){
         H.tmp <- lapply(x.design, function(obj){ svdRegression(obj$x, obj$y) })
-        if (!asMatrix){ return(H.tmp) } # only used in testing at this point.
+        if (!asMatrix){ return( list(H=H.tmp, offsets = freqOffsets) ) } # only used in testing at this point.
         # browser()
         H.mat <- offsetTfMatrix(H.tmp)
       } else {
@@ -617,6 +617,24 @@ eigenByFreq <- function(obj, offsets = NULL, rowNum, numEl, useZeroOffset = TRUE
     return(do.call(cbind, tmp2))
   }
   
+}
+
+#' Sets the low frequency component of a transfer function to zero
+#' 
+#' Used when you have high pass filtered data
+#' 
+#' @param H Returned from \code{tf()} - assumed \code{asMatrix == TRUE} and a "freq" column exists.
+#' @param f The last frequency to be zero'd out.
+#' @param freqColName The name of the frequency column, probably "freq" (default)
+#' 
+#' @export
+H2zero <- function(H, f, freqColName = "freq"){
+  idx <- tail(which(H[, freqColName] <= f), 1) + 1 #add one bin to this to be conservative.
+  freqCol <- which(colnames(H) == freqColName)
+  
+  H[1:idx, -freqCol] <- 0
+  
+  H
 }
 
 # obj - probably the H.tmp list of things ?  probably ... 

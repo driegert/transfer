@@ -52,16 +52,18 @@ specOffRecon <- function(newData, H, nw, k, nFFT, deltat){
 #' @param newData A \code{data.frame} containing the columns with the same name as those of \code{H}.
 #' @param hTrim An \code{integer} indicating how points to keep on either side of the center (0 lag) point.
 #' @param sides A value of 1 (causal) or 2 (non-causal)
+#' @param realPart A \code{logical} indicating if the real part of the impulse response should be returned
+#' (should be TRUE for real-valued time series).
 #' 
 #' @details This should be incorporated into predict.transfer() at some point.  But for now, ... 
 #' 
 #' @export
-offsetRecon <- function(H, newData, hTrim = 5, sides = 2){
+offsetRecon <- function(H, newData, hTrim = 5, sides = 2, realPart = TRUE){
   
   parts <- list()
   M <- attr(H, "nFFT") #2^(floor(log2(dim(x)[1])) + 3)
   N <- dim(newData)[1]
-  h.tmp <- impulseResponse(H, realPart = FALSE)
+  h.tmp <- impulseResponse(H, realPart = realPart)
   
   if (sides == 2){
     h <- as.data.frame(lapply(h.tmp, trim, n = hTrim))
@@ -71,6 +73,7 @@ offsetRecon <- function(H, newData, hTrim = 5, sides = 2){
     stop("Not a possible value of 'sides' argument.  1 or 2 are the only allowed values.")
   }
   
+  eye <- complex(real = 0, imaginary = 1)
   nFilt <- dim(h)[1]
   for (i in 1:length(h)){
     offNames <- unlist( strsplit( names(h)[i], split = "..", fixed = TRUE ))
@@ -84,9 +87,11 @@ offsetRecon <- function(H, newData, hTrim = 5, sides = 2){
         offIdx <- -offIdx
         eSgn <- -1
       }
-      
-      parts[[i]] <- zFilter( newData[, offNames[1]] * exp(-eSgn*2*pi*(offIdx / M))
-                             , filter = h[, i] )
+
+      # parts[[i]] <- zFilter( newData[, offNames[1]] * exp(-eSgn*2*pi*eye*(1:N)*(offIdx / M))
+      #                        , filter = h[, i] )
+      parts[[i]] <- zFilter( newData[, offNames[1]] * 2*cos(-eSgn*2*pi*(1:N)*(offIdx / M))
+                                                    , filter = h[, i] )
     }
   }
   

@@ -186,3 +186,66 @@ offsetTfMatrix <- function(obj){
   
   H
 }
+
+
+#' Returns the frequencies used to estimate transfer functions
+#' 
+#' Absolute frequencies (and possibly relative (i.e., offsets))
+#' 
+#' @param obj An object as returned by \code{transfer::offsetFreq}
+#' 
+#' @export
+freqUsed <- function(obj){
+  freq <- seq(0, 1/(2*obj$info$deltat), by = 1/(obj$info$nFFT*obj$info$deltat))
+  
+  fnames <- names(obj$offsets)
+  
+  freqUsed <- list()
+  
+  for (j in 1:length(obj$info$predictors)){
+    curPred <- obj$info$predictors[j]
+    freqUsed[[ curPred ]] <- list()
+    for (i in 1:length(fnames)){
+      idx <- as.numeric(substr(fnames[i], 5, nchar(fnames[i])))
+      
+      freqUsed[[ curPred ]][[ fnames[i] ]] <- freq[idx] + obj$offsets[[ fnames[i] ]][[ curPred ]]$offFreq
+    }
+  }
+  
+  list(cFreq = freq, freqUsed = freqUsed, info = obj$info)
+}
+
+#' Plots an object as returned from transfer::freqUsed
+#' 
+#' Shows the distribution of points used in the transfer function estimation
+#' 
+#' @param obj What gets returned from transfer::freqUsed function
+#' @param fmf The Frequency Multiplication Factor (i.e. - 1e6 for uHz labels)
+#' @param plot1to1 A \code{logical} indicating whether to plot the 1 to 1 line 
+#' (this would be the standard frequency pairings used).
+#' 
+#' @details Only 5 colours currently - need to deal with this in the future perhaps.
+#' 
+#' @export
+plot.freqUsed <- function(obj, fmf = 1, plot1to1 = TRUE, ...){
+  par(mar = c(4,4,1,1), mgp = c(2.5, 1, 0))
+  pnames <- names(obj$freqUsed)
+  cols <- c("black", "darkorange", "red", "blue", "darkgreen")
+  plot(0, 0, col = "white", xlim = fmf*obj$info$freqRange
+       , ylim = fmf * (obj$info$freqRange + c(-obj$info$maxFreqOffset, obj$info$maxFreqOffset)), ...)
+  if (plot1to1){
+    lines(fmf * (obj$info$freqRange + c(-obj$info$maxFreqOffset, obj$info$maxFreqOffset))
+          , fmf * (obj$info$freqRange + c(-obj$info$maxFreqOffset, obj$info$maxFreqOffset))
+          , lty = 2)
+  }
+  for (i in 1:length(pnames)){
+    for (j in 1:length(obj$freqUsed[[ pnames[i] ]])){
+      fname <- names(obj$freqUsed[[ pnames[i] ]][j])
+      idx <- as.numeric(substr(fname, 5, nchar(fname)))
+      nPoints <- length(obj$freqUsed[[ pnames[i] ]][[ fname ]])
+      
+      points(fmf*rep(obj$cFreq[idx], nPoints), fmf*obj$freqUsed[[ pnames[i] ]][[ fname ]], col = cols[i], ...)
+    }
+  }
+  legend("bottomright", legend = pnames, col = cols[1:length(pnames)], pch = 16)
+}
